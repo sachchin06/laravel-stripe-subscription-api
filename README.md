@@ -2,7 +2,7 @@
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
 [![PHP Version](https://img.shields.io/badge/PHP-8.2-blue.svg)](https://www.php.net/)
-[![Laravel Version](https://img.shields.io/badge/Laravel-10-red.svg)](https://laravel.com/)
+[![Laravel Version](https://img.shields.io/badge/Laravel-12-red.svg)](https://laravel.com/)
 [![Stripe](https://img.shields.io/badge/Stripe-Payment-orange.svg)](https://stripe.com/)
 
 **A fully API-based subscription management system built with Laravel and Stripe.**
