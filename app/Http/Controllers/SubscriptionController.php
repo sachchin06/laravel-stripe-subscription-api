@@ -19,13 +19,14 @@ class SubscriptionController extends Controller
 
     public function createCheckout(Request $request)
     {
+
         $request->validate(['price_id' => 'required|integer']);
 
         $price = PlanPrice::with('plan')->findOrFail($request->price_id);
 
         Stripe::setApiKey(config('services.stripe.secret'));
 
-        $session = \Stripe\Checkout\Session::create([
+        $session = Session::create([
             'mode' => 'subscription',
             'payment_method_types' => ['card'],
             'line_items' => [[
@@ -50,24 +51,24 @@ class SubscriptionController extends Controller
     }
 
 
-    public function cancel(Request $request)
+    public function cancelSubscription(Request $request)
     {
         $subscription = Subscription::where('user_id', $request->user()->id)->first();
 
-
         if (!$subscription) {
             return response()->json(['message' => 'No subscription found'], 404);
+        } else {
+            return response()->json(['message' => 'subscription found'], 201);
         }
 
-
-        Stripe::setApiKey(env('STRIPE_SECRET'));
-        $stripeSub = \Stripe\Subscription::retrieve($subscription->stripe_subscription_id);
-        $stripeSub->cancel();
-
-
-        $subscription->update(['status' => 'canceled']);
+        // Stripe::setApiKey(config('services.stripe.secret'));
+        // $stripeSub = \Stripe\Subscription::retrieve($subscription->stripe_subscription_id);
+        // $stripeSub->cancel();
 
 
-        return response()->json(['message' => 'Subscription canceled']);
+        // $subscription->update(['stripe_status' => 'canceled']);
+
+
+        // return response()->json(['message' => 'Subscription canceled']);
     }
 }

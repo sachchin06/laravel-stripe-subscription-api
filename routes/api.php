@@ -20,13 +20,18 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('/logout', [AuthController::class, 'logout']);
 
     Route::get('/plans', [SubscriptionController::class, 'listPlans']);
-    Route::post('/subscribe', [SubscriptionController::class, 'createCheckout']);
-    Route::get('/subscription', [SubscriptionController::class, 'status']);
-    Route::post('/cancel-subscription', [SubscriptionController::class, 'cancel']);
 
-    Route::post('/subscription/cancel', [SubscriptionController::class, 'cancel']);
+    // Create Checkout Session
+    Route::post('/subscribe', [SubscriptionController::class, 'createCheckout']);
+
     Route::get('/subscription/success', [SubscriptionController::class, 'success']);
     Route::get('/subscription/cancel', [SubscriptionController::class, 'cancel']);
+
+    // View subscription status
+    Route::get('/subscription', [SubscriptionController::class, 'status']);
+
+    // Cancel subscription
+    Route::post('/subscription/cancel', [SubscriptionController::class, 'cancelSubscription']);
 });
 
-
+Route::post('/stripe/webhook', [StripeController::class, 'handle']);
