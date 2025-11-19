@@ -32,13 +32,19 @@ class StripeController extends Controller
                 Log::info('checkout.session.completed event received');
 
                 $session = $event->data->object;
-                Log::info('Session data: ' . json_encode($session));
+                Log::info('checkout.session.completed Session data: ' . json_encode($session));
                 $this->createSubscriptionFromSession($session);
+                break;
+
+            case 'customer.subscription.deleted':
+                $session = $event->data->object;
+                $this->updateSubscriptionStatus($session, 'cancelled');
+                Log::info('customer.subscription.deleted Session data: ' . json_encode($session));
                 break;
 
             case 'invoice.payment_succeeded':
                 $session = $event->data->object;
-                Log::info('Session data: ' . json_encode($session));
+                Log::info('invoice.payment_succeeded Session data: ' . json_encode($session));
                 break;
         }
 
@@ -72,5 +78,25 @@ class StripeController extends Controller
         Subscription::create($obj);
 
         Log::info('object created successfully');
+    }
+
+    protected function updateSubscriptionStatus($session, $status)
+    {
+        $stripeSubId = $session->id;
+        Log::info('Updating subscription with Stripe ID: ' . $stripeSubId);
+        $stripeCustomerId = $session->customer;
+        LOG::info('Stripe Customer ID: ' . $stripeCustomerId);
+
+        $subscription = Subscription::where('stripe_subscription_id', $stripeSubId)
+            ->where('stripe_customer_id', $stripeCustomerId)
+            ->first();
+
+        if ($subscription) {
+            $subscription->stripe_status = $status;
+            $subscription->save();
+            Log::info('Subscription status updated to ' . $status);
+        } else {
+            Log::warning('Subscription with Stripe ID ' . $stripeSubId . ' not found.');
+        }
     }
 }

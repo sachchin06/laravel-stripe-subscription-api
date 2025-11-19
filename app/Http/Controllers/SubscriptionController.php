@@ -8,6 +8,7 @@ use App\Models\PlanPrice;
 use App\Models\Subscription;
 use Stripe\Stripe;
 use Stripe\Checkout\Session;
+use Illuminate\Support\Facades\Log;
 
 class SubscriptionController extends Controller
 {
@@ -20,7 +21,18 @@ class SubscriptionController extends Controller
     public function createCheckout(Request $request)
     {
 
-        $request->validate(['price_id' => 'required|integer']);
+        $request->validate([
+            'price_id' => 'required|integer',
+        ]);
+
+        #check if user already has an active subscription
+        $existingSubscription = Subscription::where('user_id', $request->user()->id)
+            ->where('plan_price_id', $request->price_id)
+            ->where('stripe_status', 'active')
+            ->first();
+        if ($existingSubscription) {
+            return response()->json(['message' => 'You already have an active subscription for this plan.'], 400);
+        }
 
         $price = PlanPrice::with('plan')->findOrFail($request->price_id);
 
@@ -53,22 +65,27 @@ class SubscriptionController extends Controller
 
     public function cancelSubscription(Request $request)
     {
-        $subscription = Subscription::where('user_id', $request->user()->id)->first();
+        #validate request
+        $request->validate([
+            'price_id' => 'required|integer',
+        ]);
+
+        $subscription = Subscription::where('user_id', $request->user()->id)
+            ->where('plan_price_id', $request->price_id)
+            ->where('stripe_status', 'active')
+            ->first();
 
         if (!$subscription) {
             return response()->json(['message' => 'No subscription found'], 404);
-        } else {
-            return response()->json(['message' => 'subscription found'], 201);
         }
 
-        // Stripe::setApiKey(config('services.stripe.secret'));
-        // $stripeSub = \Stripe\Subscription::retrieve($subscription->stripe_subscription_id);
-        // $stripeSub->cancel();
-
+        Stripe::setApiKey(config('services.stripe.secret'));
+        $stripeSub = \Stripe\Subscription::retrieve($subscription->stripe_subscription_id);
+        Log::info('Retrieved Stripe Subscription: ' . json_encode($stripeSub));
+        $stripeSub->cancel();
 
         // $subscription->update(['stripe_status' => 'canceled']);
 
-
-        // return response()->json(['message' => 'Subscription canceled']);
+        return response()->json(['message' => 'Subscription canceled']);
     }
 }
