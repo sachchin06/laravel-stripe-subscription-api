@@ -6,55 +6,57 @@ use Illuminate\Http\Request;
 use App\Models\Plan;
 use App\Models\PlanPrice;
 use App\Models\Subscription;
+use App\Services\StripeService;
 use Stripe\Stripe;
 use Stripe\Checkout\Session;
 use Illuminate\Support\Facades\Log;
 
 class SubscriptionController extends Controller
 {
+
+    protected StripeService $stripeService;
+
+    public function __construct(StripeService $stripeService)
+    {
+        $this->stripeService = $stripeService;
+    }
+
     public function listPlans()
     {
         return Plan::all();
     }
 
-
-    public function createCheckout(Request $request)
+    public function CreateCheckout(Request $request)
     {
 
         $request->validate([
-            'price_id' => 'required|integer',
+            'stripe_price_id' => 'required|string',
         ]);
 
-        #check if user already has an active subscription
-        $existingSubscription = Subscription::where('user_id', $request->user()->id)
-            ->where('plan_price_id', $request->price_id)
-            ->where('stripe_status', 'active')
-            ->first();
-        if ($existingSubscription) {
+        $stripePriceId = $request->stripe_price_id;
+
+        if ($request->user()->hasActiveSubscription($stripePriceId)) {
             return response()->json(['message' => 'You already have an active subscription for this plan.'], 400);
         }
 
-        $price = PlanPrice::with('plan')->findOrFail($request->price_id);
+        $price = PlanPrice::where('stripe_price_id', $stripePriceId)->first();
 
-        Stripe::setApiKey(config('services.stripe.secret'));
+        try {
+            $session = $this->stripeService->createCheckoutSession(
+                $request->user()->id,
+                $price->stripe_price_id,
+                config('app.url') . '/api/subscription/success?session_id={CHECKOUT_SESSION_ID}',
+                config('app.url') . '/api/subscription/cancel'
+            );
 
-        $session = Session::create([
-            'mode' => 'subscription',
-            'payment_method_types' => ['card'],
-            'line_items' => [[
-                'price' => $price->stripe_price_id,
-                'quantity' => 1,
-            ]],
-            'client_reference_id' => $request->user()->id,
-            'success_url' => config('app.url') . '/api/subscription/success?session_id={CHECKOUT_SESSION_ID}',
-            'cancel_url' => config('app.url') . '/api/subscription/cancel',
-        ]);
-
-        return response()->json([
-            'checkout_url' => $session->url,
-        ]);
+            return response()->json([
+                'checkout_url' => $session->url,
+            ]);
+        } catch (\Exception $e) {
+            Log::error('Error creating Stripe Checkout Session: ' . $e->getMessage());
+            return response()->json(['message' => 'Failed to create checkout session'], 500);
+        }
     }
-
 
     public function status(Request $request)
     {
@@ -84,7 +86,7 @@ class SubscriptionController extends Controller
         Log::info('Retrieved Stripe Subscription: ' . json_encode($stripeSub));
         $stripeSub->cancel();
 
-        // $subscription->update(['stripe_status' => 'canceled']);
+        #need to correct: make sure only send when webhook confirms cancellation
 
         return response()->json(['message' => 'Subscription canceled']);
     }

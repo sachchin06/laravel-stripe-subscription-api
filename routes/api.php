@@ -17,21 +17,22 @@ Route::get('/user', function (Request $request) {
 
 Route::middleware('auth:sanctum')->group(function () {
 
-    Route::post('/logout', [AuthController::class, 'logout']);
-
+    // Plans
     Route::get('/plans', [SubscriptionController::class, 'listPlans']);
 
-    // Create Checkout Session
-    Route::post('/subscribe', [SubscriptionController::class, 'createCheckout']);
+    // Subscription Management
+    Route::prefix('subscription')->group(function () {
+        Route::get('/status', [SubscriptionController::class, 'status']);
+        Route::post('/checkout', [SubscriptionController::class, 'createCheckoutSession']);
+        Route::delete('/cancel', [SubscriptionController::class, 'cancelSubscription']);
 
-    Route::get('/subscription/success', [SubscriptionController::class, 'success']);
-    Route::get('/subscription/cancel', [SubscriptionController::class, 'cancel']);
+        //Stripe Checkout Redirects
+        Route::get('/success', [SubscriptionController::class, 'success']);
+        Route::get('/cancel', [SubscriptionController::class, 'cancel']);
+    });
 
-    // View subscription status
-    Route::get('/subscription', [SubscriptionController::class, 'status']);
-
-    // Cancel subscription
-    Route::post('/subscription/cancel', [SubscriptionController::class, 'cancelSubscription']);
+    Route::post('/logout', [AuthController::class, 'logout']);
 });
 
+// Stripe Webhook
 Route::post('/stripe/webhook', [StripeController::class, 'handle']);
