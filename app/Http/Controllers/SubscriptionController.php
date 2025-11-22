@@ -26,7 +26,7 @@ class SubscriptionController extends Controller
         return Plan::all();
     }
 
-    public function CreateCheckout(Request $request)
+    public function createCheckoutSession(Request $request)
     {
 
         $request->validate([
@@ -67,27 +67,19 @@ class SubscriptionController extends Controller
 
     public function cancelSubscription(Request $request)
     {
-        #validate request
-        $request->validate([
-            'price_id' => 'required|integer',
-        ]);
+        $subscription = $request->user()->subscription;
 
-        $subscription = Subscription::where('user_id', $request->user()->id)
-            ->where('plan_price_id', $request->price_id)
-            ->where('stripe_status', 'active')
-            ->first();
-
-        if (!$subscription) {
-            return response()->json(['message' => 'No subscription found'], 404);
+        if (!$subscription || $subscription->stripe_status !== 'active') {
+            return response()->json(['message' => 'No ffactive subscription found'], 404);
         }
 
-        Stripe::setApiKey(config('services.stripe.secret'));
-        $stripeSub = \Stripe\Subscription::retrieve($subscription->stripe_subscription_id);
-        Log::info('Retrieved Stripe Subscription: ' . json_encode($stripeSub));
-        $stripeSub->cancel();
+        try {
 
-        #need to correct: make sure only send when webhook confirms cancellation
-
-        return response()->json(['message' => 'Subscription canceled']);
+            $this->stripeService->cancelSubscription($subscription);
+            return response()->json(['message' => 'Subscription set to cancel at end of period.']);
+        } catch (\Exception $e) {
+            Log::error('Error cancelling subscription: ' . $e->getMessage());
+            return response()->json(['message' => 'Failed to cancel subscription'], 500);
+        }
     }
 }

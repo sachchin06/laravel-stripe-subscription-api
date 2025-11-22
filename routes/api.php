@@ -24,7 +24,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::prefix('subscription')->group(function () {
         Route::get('/status', [SubscriptionController::class, 'status']);
         Route::post('/checkout', [SubscriptionController::class, 'createCheckoutSession']);
-        Route::delete('/cancel', [SubscriptionController::class, 'cancelSubscription']);
+        Route::post('/cancel', [SubscriptionController::class, 'cancelSubscription']);
 
         //Stripe Checkout Redirects
         Route::get('/success', [SubscriptionController::class, 'success']);

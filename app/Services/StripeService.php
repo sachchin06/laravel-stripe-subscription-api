@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Models\Subscription;
 use Stripe\StripeClient;
 
 
@@ -27,6 +28,15 @@ class StripeService
             'client_reference_id' => $userId,
             'success_url' => $successUrl,
             'cancel_url' => $cancelUrl,
+        ]);
+    }
+
+    public function cancelSubscription(Subscription $subscription)
+    {
+        $subscriptionId = $subscription->stripe_subscription_id;
+
+        return $this->stripe->subscriptions->update($subscriptionId, [
+            'cancel_at_period_end' => true,
         ]);
     }
 }
