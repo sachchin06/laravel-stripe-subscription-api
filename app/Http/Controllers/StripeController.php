@@ -4,12 +4,20 @@ namespace App\Http\Controllers;
 
 use App\Models\PlanPrice;
 use App\Models\Subscription;
+use App\Services\StripeService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
 use Stripe\Stripe;
 
 class StripeController extends Controller
 {
+
+    protected StripeService $stripeService;
+
+    public function __construct(StripeService $stripeService)
+    {
+        $this->stripeService = $stripeService;
+    }
     public function handle(Request $request)
     {
         $payload = $request->getContent();
@@ -26,26 +34,28 @@ class StripeController extends Controller
             return response('Webhook error: ' . $e->getMessage(), 400);
         }
 
-        switch ($event->type) {
+        $type = $event->type;
+        $data = $event->data->object;
+
+        switch ($type) {
 
             case 'checkout.session.completed':
-                Log::info('checkout.session.completed event received');
+                Log::info('checkout.session.completed Session data: ' . json_encode($data));
+                $this->createSubscriptionFromSession($data);
+                break;
 
-                $session = $event->data->object;
-                Log::info('checkout.session.completed Session data: ' . json_encode($session));
-                $this->createSubscriptionFromSession($session);
+            case 'customer.subscription.updated':
+                $this->updateSubscriptionStatus($data);
+                Log::info('customer.subscription.updated Session data: ' . json_encode($data));
                 break;
 
             case 'customer.subscription.deleted':
-                $session = $event->data->object;
-                $this->updateSubscriptionStatus($session, 'cancelled');
-                Log::info('customer.subscription.deleted Session data: ' . json_encode($session));
+                $this->updateSubscriptionStatus($data);
+                Log::info('customer.subscription.deleted Session data: ' . json_encode($data));
                 break;
 
-            case 'invoice.payment_succeeded':
-                $session = $event->data->object;
-                Log::info('invoice.payment_succeeded Session data: ' . json_encode($session));
-                break;
+            default:
+                Log::info("Unhandled Stripe event type: {$type}");
         }
 
         return response('Webhook handled', 200);
@@ -53,50 +63,77 @@ class StripeController extends Controller
 
     protected function createSubscriptionFromSession($session)
     {
-        $userId = $session->client_reference_id;
-        $stripeSubId = $session->subscription;
-        $stripeCustomerId = $session->customer;
+        try {
+            $userId = $session->client_reference_id;
+            $stripeSubId = $session->subscription;
+            $stripeCustomerId = $session->customer;
 
-        Stripe::setApiKey(config('services.stripe.secret'));
-        $stripeSubscription = \Stripe\Subscription::retrieve($stripeSubId);
+            try {
+                $stripeSubscription = $this->stripeService->getSubscription($stripeSubId);
+            } catch (\Exception $e) {
+                Log::error("Failed to fetch subscription from Stripe: " . $e->getMessage());
+                throw $e;
+            }
 
-        $priceId = $stripeSubscription->items->data[0]->price->id;
+            $priceId = $stripeSubscription->items->data[0]->price->id;
 
-        $price = PlanPrice::where('stripe_price_id', $priceId)->first();
-        $plan = $price->plan;
+            $price = PlanPrice::where('stripe_price_id', $priceId)->first();
+            $plan = $price->plan;
 
-        $obj = [
-            'user_id' => $userId,
-            'plan_id' => $plan->id,
-            'plan_price_id' => $price->id,
-            'stripe_subscription_id' => $stripeSubId,
-            'stripe_customer_id' => $stripeCustomerId,
-            'stripe_status' => $stripeSubscription->status,
-            'ends_at' => null,
-        ];
+            $obj = [
+                'user_id' => $userId,
+                'plan_id' => $plan->id,
+                'plan_price_id' => $price->id,
+                'stripe_subscription_id' => $stripeSubId,
+                'stripe_customer_id' => $stripeCustomerId,
+                'stripe_status' => $stripeSubscription->status,
+                'ends_at' => null,
+            ];
 
-        Subscription::create($obj);
+            Subscription::create($obj);
 
-        Log::info('object created successfully');
+            Log::info('object created successfully');
+        } catch (\Exception $e) {
+            Log::error("Error in createSubscriptionFromSession: " . $e->getMessage(), [
+                'session_id' => $session->id ?? 'unknown',
+                'trace' => $e->getTraceAsString()
+            ]);
+        }
     }
 
-    protected function updateSubscriptionStatus($session, $status)
+    protected function updateSubscriptionStatus($stripeObject)
     {
-        $stripeSubId = $session->id;
-        Log::info('Updating subscription with Stripe ID: ' . $stripeSubId);
-        $stripeCustomerId = $session->customer;
-        LOG::info('Stripe Customer ID: ' . $stripeCustomerId);
 
-        $subscription = Subscription::where('stripe_subscription_id', $stripeSubId)
-            ->where('stripe_customer_id', $stripeCustomerId)
-            ->first();
+        try {
+            $stripeSubId = $stripeObject->id ?? null;
+            Log::info('Updating subscription with Stripe ID: ' . $stripeSubId);
+            $stripeCustomerId = $stripeObject->customer ?? null;
 
-        if ($subscription) {
-            $subscription->stripe_status = $status;
+            if (!isset($stripeSubId) || !isset($stripeCustomerId)) {
+                throw new \InvalidArgumentException("Invalid Stripe Object: Missing 'id' or 'customer' field.");
+            }
+
+            $subscription = Subscription::where('stripe_subscription_id', $stripeSubId)
+                ->where('stripe_customer_id', $stripeCustomerId)
+                ->first();
+
+            if (!$subscription) {
+                Log::warning("Subscription record not found for Stripe ID {$stripeSubId}");
+                return;
+            }
+
+            $subscription->stripe_status = $stripeObject->status;
+
+            if (isset($stripeObject->cancel_at) && $stripeObject->cancel_at) {
+                $subscription->ends_at = \Carbon\Carbon::createFromTimestamp($stripeObject->cancel_at);
+            }
             $subscription->save();
-            Log::info('Subscription status updated to ' . $status);
-        } else {
-            Log::warning('Subscription with Stripe ID ' . $stripeSubId . ' not found.');
+            Log::info('Subscription status updated to ' . $stripeObject->status);
+        } catch (\Exception $e) {
+            Log::error("Failed to update subscription status: " . $e->getMessage(), [
+                'stripe_id' => $stripeSubId,
+                'trace' => $e->getTraceAsString()
+            ]);
         }
     }
 }

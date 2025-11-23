@@ -70,7 +70,7 @@ class SubscriptionController extends Controller
         $subscription = $request->user()->subscription;
 
         if (!$subscription || $subscription->stripe_status !== 'active') {
-            return response()->json(['message' => 'No ffactive subscription found'], 404);
+            return response()->json(['message' => 'No active subscription found'], 404);
         }
 
         try {

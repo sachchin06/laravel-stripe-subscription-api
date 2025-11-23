@@ -16,6 +16,11 @@ class StripeService
         $this->stripe = new StripeClient(config(('services.stripe.secret')));
     }
 
+    public function getSubscription(string $subId)
+    {
+        return $this->stripe->subscriptions->retrieve($subId);
+    }
+
     public function createCheckoutSession($userId, $priceId, $successUrl, $cancelUrl)
     {
         return $this->stripe->checkout->sessions->create([
