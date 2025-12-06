@@ -1,113 +1,138 @@
 # Laravel Stripe Subscription API
 
-[![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
-[![PHP Version](https://img.shields.io/badge/PHP-8.2-blue.svg)](https://www.php.net/)
-[![Laravel Version](https://img.shields.io/badge/Laravel-12-red.svg)](https://laravel.com/)
-[![Stripe](https://img.shields.io/badge/Stripe-Payment-orange.svg)](https://stripe.com/)
-
-**A fully API-based subscription management system built with Laravel and Stripe.**
-This project demonstrates best practices for building scalable and secure subscription backends for SaaS apps, SPAs, or mobile apps.
-
----
-
-## Table of Contents
-
-* [Features](#features)
-* [Tech Stack](#tech-stack)
-* [Setup Instructions](#setup-instructions)
-* [API Endpoints](#api-endpoints)
-* [Future Enhancements](#future-enhancements)
-* [License](#license)
-
----
+A clean, production-ready Laravel API for managing SaaS subscriptions with Stripe integration.
 
 ## Features
 
-* **Dynamic Plans Management**: Store Basic, Pro, or custom plans in database
-* **Stripe Checkout Integration**: Secure, PCI-compliant, recurring subscription support
-* **Webhook Handling**: Sync subscription status between Stripe and database
-* **API-Only Architecture**: Ready for frontend frameworks or mobile apps
-* **Subscription Management**: Check, cancel, or manage subscriptions via API
-* **Security Best Practices**: Webhook signature verification, env-based keys
-
----
+- 🔐 Token-based authentication (Laravel Sanctum)
+- 💳 Stripe Checkout integration
+- 🔄 Real-time webhook sync
+- 📦 Multiple subscription plans
+- 🎯 Clean architecture (Actions, DTOs, Events, Jobs)
+- 📚 Swagger/OpenAPI documentation
 
 ## Tech Stack
 
-* **Backend:** Laravel 12 (API only)
-* **Payment Gateway:** Stripe (Checkout & Subscriptions)
-* **Database:** MySQL
-* **Authentication:** Laravel Sanctum (API token-based auth)
-* **Testing:** Postman 
+- Laravel 12
+- PHP 8.2+
+- MySQL
+- Stripe PHP SDK
+- Laravel Sanctum
 
----
+## Quick Start
 
-## Setup Instructions
-
-1. Clone the repository:
-
-```bash
-git clone git@github.com:sachchin06/laravel-stripe-subscription-api.git
-cd laravel-stripe-subscription-api
-```
-
-2. Install dependencies:
+### 1. Install Dependencies
 
 ```bash
 composer install
+npm install
 ```
 
-3. Copy `.env.example` to `.env` and configure Stripe and app URLs:
+### 2. Environment Setup
 
+```bash
+cp .env.example .env
+php artisan key:generate
+```
+
+Update `.env` with your credentials:
 ```env
-APP_URL=http://127.0.0.1:8000
-STRIPE_SECRET=sk_test_xxx
-STRIPE_WEBHOOK_SECRET=whsec_xxx
+DB_DATABASE=your_database
+DB_USERNAME=your_username
+DB_PASSWORD=your_password
+
+STRIPE_KEY=pk_test_...
+STRIPE_SECRET=sk_test_...
+STRIPE_WEBHOOK_SECRET=whsec_...
 ```
 
-4. Run migrations and seed plans:
+### 3. Database Setup
 
 ```bash
 php artisan migrate --seed
 ```
 
-5. Start local server:
+This creates:
+- Database tables
+- Sample plans (Basic, Pro)
+- Test user (test@example.com / password)
+
+### 4. Start Development
 
 ```bash
+# Terminal 1: Laravel server
 php artisan serve
+
+# Terminal 2: Queue worker (for webhooks)
+php artisan queue:work --verbose
+
+# Terminal 3: Stripe webhook listener
+stripe listen --forward-to http://127.0.0.1:8000/api/webhooks/stripe
 ```
 
-6. Test Stripe webhooks locally using Stripe CLI:
+Copy the webhook secret from Terminal 3 and update `.env`:
+```env
+STRIPE_WEBHOOK_SECRET=whsec_xxxxx
+```
 
+Then run:
 ```bash
-stripe listen --forward-to http://127.0.0.1:8000/api/stripe/webhook
+php artisan config:clear
 ```
 
-7. Use Postman or your frontend app to interact with the API.
+## API Documentation
 
----
+Interactive API docs available at:
+```
+http://127.0.0.1:8000/api/documentation
+```
+
+Generate docs:
+```bash
+php artisan l5-swagger:generate
+```
 
 ## API Endpoints
 
-| Method | Endpoint                   | Description                     |
-| ------ | -------------------------- | ------------------------------- |
-| GET    | `/api/plans`               | List all subscription plans     |
-| POST   | `/api/subscribe`           | Create Stripe Checkout session  |
-| GET    | `/api/subscription`        | Get current user's subscription |
-| POST   | `/api/cancel-subscription` | Cancel subscription             |
-| POST   | `/api/stripe/webhook`      | Handle Stripe webhook events    |
+### Authentication
+```
+POST   /api/auth/register    - Register new user
+POST   /api/auth/login       - Login
+POST   /api/auth/logout      - Logout
+GET    /api/auth/user        - Get current user
+```
 
----
+### Subscriptions
+```
+GET    /api/plans                      - List available plans
+GET    /api/subscriptions              - Get user subscriptions
+POST   /api/subscriptions/checkout     - Create checkout session
+POST   /api/subscriptions/cancel       - Cancel subscription
+```
 
-## Future Enhancements
+### Webhooks
+```
+POST   /api/webhooks/stripe   - Stripe webhook endpoint
+```
 
-* Upgrade / downgrade subscription plans
-* Trial periods and coupon handling
-* Automatic invoicing and email notifications
-* Admin dashboard for managing plans and subscriptions
+## Common Commands
 
----
+```bash
+# Development
+composer dev              # Start all services
+php artisan serve        # Start server only
+php artisan queue:work   # Start queue worker
+
+# Testing
+php artisan test
+
+# Code Quality
+./vendor/bin/pint        # Format code
+
+# Database
+php artisan migrate:fresh --seed   # Reset database
+```
 
 ## License
 
-MIT License © [Sachchin]
+MIT License
