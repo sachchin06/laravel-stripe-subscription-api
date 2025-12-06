@@ -27,7 +27,7 @@ Route::middleware('auth:sanctum')->group(function () {
     // Auth
     Route::prefix('auth')->group(function () {
         Route::post('/logout', [AuthController::class, 'logout']);
-        Route::get('/user', fn(Request $request) => new UserResource($request->user()));
+        Route::get('/user', [AuthController::class, 'user']);
     });
 
     // Plans
