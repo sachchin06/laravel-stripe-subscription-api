@@ -2,8 +2,12 @@
 
 namespace App\Http\Controllers\Api;
 
-use App\Actions\Auth\AuthenticateUserAction;
-use App\Actions\Auth\RegisterUserAction;
+use App\Domains\Auth\Actions\AuthenticateUserAction;
+use App\Domains\Auth\Actions\LogoutUserAction;
+use App\Domains\Auth\Actions\RegisterUserAction;
+use App\Domains\Auth\DTOs\LoginData;
+use App\Domains\Auth\DTOs\RegisterUserData;
+use App\Domains\Auth\Services\AuthService;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Auth\LoginRequest;
 use App\Http\Requests\Auth\RegisterRequest;
@@ -11,11 +15,19 @@ use App\Http\Resources\UserResource;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
+/**
+ * Controller for authentication endpoints
+ * 
+ * This controller provides a thin HTTP layer for authentication operations,
+ * delegating business logic to domain actions and services.
+ */
 class AuthController extends Controller
 {
     public function __construct(
         private readonly RegisterUserAction $registerUser,
-        private readonly AuthenticateUserAction $authenticateUser
+        private readonly AuthenticateUserAction $authenticateUser,
+        private readonly LogoutUserAction $logoutUser,
+        private readonly AuthService $authService
     ) {}
 
     /**
@@ -53,13 +65,14 @@ class AuthController extends Controller
      */
     public function register(RegisterRequest $request): JsonResponse
     {
-        $user = $this->registerUser->execute(
+        $registerData = new RegisterUserData(
             name: $request->validated('name'),
             email: $request->validated('email'),
             password: $request->validated('password')
         );
 
-        $token = $user->createToken('api-token')->plainTextToken;
+        $user = $this->registerUser->execute($registerData);
+        $token = $this->authService->createToken($user);
 
         return response()->json([
             'user' => new UserResource($user),
@@ -100,12 +113,13 @@ class AuthController extends Controller
      */
     public function login(LoginRequest $request): JsonResponse
     {
-        $user = $this->authenticateUser->execute(
+        $loginData = new LoginData(
             email: $request->validated('email'),
             password: $request->validated('password')
         );
 
-        $token = $user->createToken('api-token')->plainTextToken;
+        $user = $this->authenticateUser->execute($loginData);
+        $token = $this->authService->createToken($user);
 
         return response()->json([
             'user' => new UserResource($user),
@@ -137,7 +151,7 @@ class AuthController extends Controller
      */
     public function logout(Request $request): JsonResponse
     {
-        $request->user()->currentAccessToken()->delete();
+        $this->logoutUser->execute($request->user());
 
         return response()->json([
             'message' => 'Logged out successfully',

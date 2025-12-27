@@ -15,8 +15,8 @@ use Illuminate\Support\Facades\Route;
 
 // Public routes
 Route::prefix('auth')->group(function () {
-    Route::post('/register', [AuthController::class, 'register']);
-    Route::post('/login', [AuthController::class, 'login']);
+    Route::post('/register', [AuthController::class, 'register'])->name('auth.register');
+    Route::post('/login', [AuthController::class, 'login'])->name('auth.login');
 });
 
 // Stripe webhook
@@ -24,10 +24,11 @@ Route::post('/webhooks/stripe', [StripeWebhookController::class, 'handle'])
     ->name('webhooks.stripe');
 
 Route::middleware('auth:sanctum')->group(function () {
+  
     // Auth
     Route::prefix('auth')->group(function () {
-        Route::post('/logout', [AuthController::class, 'logout']);
-        Route::get('/user', [AuthController::class, 'user']);
+        Route::post('/logout', [AuthController::class, 'logout'])->name('auth.logout');
+        Route::get('/user', [AuthController::class, 'user'])->name('auth.user');
     });
 
     // Plans
