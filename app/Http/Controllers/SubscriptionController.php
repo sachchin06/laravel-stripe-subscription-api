@@ -2,22 +2,31 @@
 
 namespace App\Http\Controllers;
 
-use App\Actions\Subscription\CancelSubscriptionAction;
-use App\Actions\Subscription\CreateCheckoutSessionAction;
+use App\Domains\Billing\Actions\CreateCheckoutSessionAction;
+use App\Domains\Subscription\Actions\CancelSubscriptionAction;
+use App\Domains\Subscription\Services\PlanService;
+use App\Domains\Subscription\Services\SubscriptionManager;
 use App\Exceptions\SubscriptionException;
 use App\Http\Requests\Subscription\CreateCheckoutRequest;
 use App\Http\Resources\PlanResource;
 use App\Http\Resources\SubscriptionResource;
-use App\Models\Plan;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
 
+/**
+ * Controller for subscription management endpoints
+ * 
+ * This controller provides a thin HTTP layer that coordinates
+ * subscription operations through domain actions and services.
+ */
 class SubscriptionController extends Controller
 {
     public function __construct(
         private readonly CreateCheckoutSessionAction $createCheckout,
-        private readonly CancelSubscriptionAction $cancelSubscription
+        private readonly CancelSubscriptionAction $cancelSubscription,
+        private readonly PlanService $planService,
+        private readonly SubscriptionManager $subscriptionManager
     ) {}
 
     /**
@@ -45,8 +54,7 @@ class SubscriptionController extends Controller
      */
     public function listPlans(): JsonResponse
     {
-        Log::info('hii');
-        $plans = Plan::with('prices')->get();
+        $plans = $this->planService->getAllPlansWithPrices();
 
         return response()->json([
             'data' => PlanResource::collection($plans),
@@ -142,9 +150,9 @@ class SubscriptionController extends Controller
      */
     public function status(Request $request): JsonResponse
     {
-        $subscription = $request->user()->subscription()->with(['plan', 'price'])->first();
+        $subscription = $this->subscriptionManager->getActiveSubscription($request->user());
 
-        if (! $subscription) {
+        if (!$subscription) {
             return response()->json([
                 'data' => null,
             ]);
@@ -183,9 +191,9 @@ class SubscriptionController extends Controller
      */
     public function cancel(Request $request): JsonResponse
     {
-        $subscription = $request->user()->subscription;
+        $subscription = $this->subscriptionManager->getActiveSubscription($request->user());
 
-        if (! $subscription) {
+        if (!$subscription) {
             throw SubscriptionException::notFound();
         }
 

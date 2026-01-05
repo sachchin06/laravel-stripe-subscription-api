@@ -14,7 +14,9 @@ return Application::configure(basePath: dirname(__DIR__))
     ->withMiddleware(function (Middleware $middleware): void {
         $middleware->alias([
             'subscribed' => \App\Http\Middleware\EnsureUserHasActiveSubscription::class,
-            'subscribed.plan' => \App\Http\Middleware\EnsureUserIsSubscribedToPlan::class,
+            'feature' => \App\Http\Middleware\EnsureFeatureAccess::class,
+            'plan' => \App\Http\Middleware\EnsureSubscribedToPlan::class,
+            'usage' => \App\Http\Middleware\TrackUsage::class,
         ]);
     })
     ->withExceptions(function (Exceptions $exceptions): void {
