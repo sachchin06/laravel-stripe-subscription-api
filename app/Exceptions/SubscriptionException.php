@@ -22,6 +22,21 @@ class SubscriptionException extends Exception
         return new self('Subscription not found.', 404);
     }
 
+    public static function invalidPlanPrice(): self
+    {
+        return new self('Invalid plan price specified.', 400);
+    }
+
+    public static function invalidCheckoutSession(string $reason = 'Invalid checkout session'): self
+    {
+        return new self($reason, 400);
+    }
+
+    public static function cannotCancel(string $reason = 'Subscription cannot be cancelled'): self
+    {
+        return new self($reason, 400);
+    }
+
     public function render(): JsonResponse
     {
         return response()->json([
