@@ -6,10 +6,12 @@ use App\Domains\Billing\Actions\CreateCheckoutSessionAction;
 use App\Domains\Subscription\Actions\CancelSubscriptionAction;
 use App\Domains\Subscription\Services\PlanService;
 use App\Domains\Subscription\Services\SubscriptionManager;
+use App\Domains\Shared\Services\StripeService;
 use App\Exceptions\SubscriptionException;
 use App\Http\Requests\Subscription\CreateCheckoutRequest;
 use App\Http\Resources\PlanResource;
 use App\Http\Resources\SubscriptionResource;
+use App\Models\PlanPrice;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
@@ -26,7 +28,8 @@ class SubscriptionController extends Controller
         private readonly CreateCheckoutSessionAction $createCheckout,
         private readonly CancelSubscriptionAction $cancelSubscription,
         private readonly PlanService $planService,
-        private readonly SubscriptionManager $subscriptionManager
+        private readonly SubscriptionManager $subscriptionManager,
+        private readonly StripeService $stripeService
     ) {}
 
     /**
@@ -213,6 +216,216 @@ class SubscriptionController extends Controller
 
             return response()->json([
                 'message' => 'Failed to cancel subscription',
+            ], 500);
+        }
+    }
+
+    /**
+     * @OA\Post(
+     *     path="/api/subscriptions/resume",
+     *     summary="Resume a cancelled subscription",
+     *     tags={"Subscriptions"},
+     *     security={{"sanctum":{}}},
+     *     @OA\Response(
+     *         response=200,
+     *         description="Subscription resumed",
+     *         @OA\JsonContent(
+     *             @OA\Property(property="message", type="string", example="Subscription resumed successfully"),
+     *             @OA\Property(property="data", ref="#/components/schemas/Subscription")
+     *         )
+     *     ),
+     *     @OA\Response(response=404, description="No subscription found"),
+     *     @OA\Response(response=400, description="Subscription cannot be resumed")
+     * )
+     */
+    public function resume(Request $request): JsonResponse
+    {
+        $subscription = $this->subscriptionManager->getActiveSubscription($request->user());
+
+        if (!$subscription) {
+            throw SubscriptionException::notFound();
+        }
+
+        if (!$subscription->ends_at) {
+            return response()->json([
+                'message' => 'Subscription is not scheduled for cancellation',
+            ], 400);
+        }
+
+        try {
+            // Resume in Stripe
+            $this->stripeService->resumeSubscription($subscription->stripe_subscription_id);
+
+            // Update local
+            $subscription->update(['ends_at' => null]);
+
+            return response()->json([
+                'message' => 'Subscription resumed successfully',
+                'data' => new SubscriptionResource($subscription->fresh(['plan', 'price'])),
+            ]);
+
+        } catch (\Exception $e) {
+            Log::error('Error resuming subscription', [
+                'error' => $e->getMessage(),
+                'subscription_id' => $subscription->id,
+            ]);
+
+            return response()->json([
+                'message' => 'Failed to resume subscription',
+            ], 500);
+        }
+    }
+
+    /**
+     * @OA\Post(
+     *     path="/api/subscriptions/change-plan",
+     *     summary="Change subscription plan/price",
+     *     tags={"Subscriptions"},
+     *     security={{"sanctum":{}}},
+     *     @OA\RequestBody(
+     *         required=true,
+     *         @OA\JsonContent(
+     *             required={"price_id"},
+     *             @OA\Property(property="price_id", type="string", example="price_1234567890", description="New Stripe price ID")
+     *         )
+     *     ),
+     *     @OA\Response(
+     *         response=200,
+     *         description="Plan changed successfully",
+     *         @OA\JsonContent(
+     *             @OA\Property(property="message", type="string"),
+     *             @OA\Property(property="data", ref="#/components/schemas/Subscription")
+     *         )
+     *     ),
+     *     @OA\Response(response=404, description="No subscription found"),
+     *     @OA\Response(response=422, description="Invalid price ID")
+     * )
+     */
+    public function changePlan(Request $request): JsonResponse
+    {
+        $validated = $request->validate([
+            'price_id' => 'required|string',
+        ]);
+
+        $subscription = $this->subscriptionManager->getActiveSubscription($request->user());
+
+        if (!$subscription) {
+            throw SubscriptionException::notFound();
+        }
+
+        // Find the new price
+        $newPrice = PlanPrice::where('stripe_price_id', $validated['price_id'])->first();
+
+        if (!$newPrice) {
+            return response()->json([
+                'message' => 'Invalid price ID',
+            ], 422);
+        }
+
+        try {
+            // Change plan in Stripe
+            $this->stripeService->changeSubscriptionPrice(
+                $subscription->stripe_subscription_id,
+                $validated['price_id']
+            );
+
+            // Update local subscription
+            $subscription->update([
+                'plan_id' => $newPrice->plan_id,
+                'plan_price_id' => $newPrice->id,
+            ]);
+
+            return response()->json([
+                'message' => 'Plan changed successfully',
+                'data' => new SubscriptionResource($subscription->fresh(['plan', 'price'])),
+            ]);
+
+        } catch (\Exception $e) {
+            Log::error('Error changing plan', [
+                'error' => $e->getMessage(),
+                'subscription_id' => $subscription->id,
+            ]);
+
+            return response()->json([
+                'message' => 'Failed to change plan: ' . $e->getMessage(),
+            ], 500);
+        }
+    }
+
+    /**
+     * @OA\Get(
+     *     path="/api/subscriptions/details",
+     *     summary="Get detailed subscription info from Stripe",
+     *     tags={"Subscriptions"},
+     *     security={{"sanctum":{}}},
+     *     @OA\Response(
+     *         response=200,
+     *         description="Subscription details from Stripe",
+     *         @OA\JsonContent(
+     *             @OA\Property(property="data", type="object",
+     *                 @OA\Property(property="id", type="string"),
+     *                 @OA\Property(property="status", type="string"),
+     *                 @OA\Property(property="current_period_start", type="integer"),
+     *                 @OA\Property(property="current_period_end", type="integer"),
+     *                 @OA\Property(property="cancel_at_period_end", type="boolean"),
+     *                 @OA\Property(property="canceled_at", type="integer", nullable=true),
+     *                 @OA\Property(property="trial_end", type="integer", nullable=true),
+     *                 @OA\Property(property="plan", type="object"),
+     *                 @OA\Property(property="default_payment_method", type="object", nullable=true)
+     *             )
+     *         )
+     *     ),
+     *     @OA\Response(response=404, description="No subscription found")
+     * )
+     */
+    public function details(Request $request): JsonResponse
+    {
+        $subscription = $this->subscriptionManager->getActiveSubscription($request->user());
+
+        if (!$subscription || !$subscription->stripe_subscription_id) {
+            return response()->json([
+                'data' => null,
+            ]);
+        }
+
+        try {
+            $stripeSubscription = $this->stripeService->retrieveSubscription(
+                $subscription->stripe_subscription_id
+            );
+
+            return response()->json([
+                'data' => [
+                    'id' => $stripeSubscription->id,
+                    'status' => $stripeSubscription->status,
+                    'current_period_start' => $stripeSubscription->current_period_start,
+                    'current_period_end' => $stripeSubscription->current_period_end,
+                    'cancel_at_period_end' => $stripeSubscription->cancel_at_period_end,
+                    'canceled_at' => $stripeSubscription->canceled_at,
+                    'trial_end' => $stripeSubscription->trial_end,
+                    'plan' => [
+                        'id' => $stripeSubscription->items->data[0]->price->id,
+                        'amount' => $stripeSubscription->items->data[0]->price->unit_amount,
+                        'currency' => $stripeSubscription->items->data[0]->price->currency,
+                        'interval' => $stripeSubscription->items->data[0]->price->recurring->interval,
+                    ],
+                    'default_payment_method' => $stripeSubscription->default_payment_method ? [
+                        'id' => $stripeSubscription->default_payment_method->id,
+                        'brand' => $stripeSubscription->default_payment_method->card->brand ?? null,
+                        'last4' => $stripeSubscription->default_payment_method->card->last4 ?? null,
+                        'exp_month' => $stripeSubscription->default_payment_method->card->exp_month ?? null,
+                        'exp_year' => $stripeSubscription->default_payment_method->card->exp_year ?? null,
+                    ] : null,
+                ],
+            ]);
+
+        } catch (\Exception $e) {
+            Log::error('Error fetching subscription details', [
+                'error' => $e->getMessage(),
+                'subscription_id' => $subscription->id,
+            ]);
+
+            return response()->json([
+                'message' => 'Failed to fetch subscription details',
             ], 500);
         }
     }
