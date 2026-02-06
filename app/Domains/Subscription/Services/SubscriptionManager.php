@@ -7,9 +7,9 @@ use App\Models\Subscription;
 use App\Models\User;
 use App\Models\PlanPrice;
 use App\Domains\Subscription\DTOs\SubscriptionData;
-use App\Domains\Subscription\Events\SubscriptionCreated;
-use App\Domains\Subscription\Events\SubscriptionUpdated;
-use App\Domains\Subscription\Events\SubscriptionCanceled;
+use App\Events\SubscriptionCreated;
+use App\Events\SubscriptionUpdated;
+use App\Events\SubscriptionCanceled;
 use App\Exceptions\SubscriptionException;
 use Illuminate\Support\Facades\DB;
 
@@ -39,16 +39,38 @@ class SubscriptionManager
                 throw SubscriptionException::invalidCheckoutSession('No subscription found in checkout session');
             }
 
+            // Check if subscription already exists (idempotency)
+            $existingSubscription = Subscription::where('stripe_subscription_id', $session->subscription)->first();
+            if ($existingSubscription) {
+                return $existingSubscription;
+            }
+
             // Get subscription details from Stripe
             $stripeSubscription = $this->stripeService->retrieveSubscription($session->subscription);
             
             // Find the plan price
             $priceId = $stripeSubscription->items->data[0]->price->id;
-            $planPrice = PlanPrice::where('stripe_price_id', $priceId)->firstOrFail();
+            $planPrice = PlanPrice::where('stripe_price_id', $priceId)->first();
+            
+            if (!$planPrice) {
+                throw SubscriptionException::invalidCheckoutSession("Price {$priceId} not found in database");
+            }
+
+            // Get user ID from client_reference_id
+            $userId = (int) $session->client_reference_id;
+            if (!$userId) {
+                throw SubscriptionException::invalidCheckoutSession('Missing client_reference_id');
+            }
+
+            // Update user's stripe_customer_id if not set
+            $user = User::find($userId);
+            if ($user && !$user->stripe_customer_id) {
+                $user->update(['stripe_customer_id' => $stripeSubscription->customer]);
+            }
             
             // Create subscription data
             $subscriptionData = new SubscriptionData(
-                userId: (int) $session->client_reference_id,
+                userId: $userId,
                 planId: $planPrice->plan_id,
                 planPriceId: $planPrice->id,
                 stripeSubscriptionId: $stripeSubscription->id,
