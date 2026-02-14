@@ -11,8 +11,8 @@ class StripeWebhookException extends Exception
         return new self("Invalid webhook signature: {$message}", 400);
     }
 
-    public static function invalidPayload(string $message): self
+    public static function processingFailed(string $reason): self
     {
-        return new self("Invalid webhook payload: {$message}", 400);
+        return new self("Webhook processing failed: {$reason}", 400);
     }
 }
