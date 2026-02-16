@@ -6,6 +6,7 @@ use App\Domains\Shared\Services\StripeService;
 use App\Domains\Auth\Services\AuthService;
 use App\Domains\Subscription\Services\SubscriptionManager;
 use App\Domains\Subscription\Services\PlanService;
+use App\Domains\Subscription\Services\ProductService;
 use App\Domains\Subscription\Services\FeatureGateService;
 use App\Domains\Subscription\Services\UsageTrackingService;
 use App\Domains\Billing\Services\BillingService;
@@ -35,6 +36,7 @@ class DomainServiceProvider extends ServiceProvider
         // Subscription domain services
         $this->app->singleton(SubscriptionManager::class);
         $this->app->singleton(PlanService::class);
+        $this->app->singleton(ProductService::class);
         $this->app->singleton(FeatureGateService::class);
         $this->app->singleton(UsageTrackingService::class);
 
