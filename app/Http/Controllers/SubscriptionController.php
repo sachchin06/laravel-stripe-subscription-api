@@ -397,8 +397,8 @@ class SubscriptionController extends Controller
                 'data' => [
                     'id' => $stripeSubscription->id,
                     'status' => $stripeSubscription->status,
-                    'current_period_start' => $stripeSubscription->current_period_start,
-                    'current_period_end' => $stripeSubscription->current_period_end,
+                    'current_period_start' => $stripeSubscription->items->data[0]->current_period_start,
+                    'current_period_end' => $stripeSubscription->items->data[0]->current_period_end,
                     'cancel_at_period_end' => $stripeSubscription->cancel_at_period_end,
                     'canceled_at' => $stripeSubscription->canceled_at,
                     'trial_end' => $stripeSubscription->trial_end,

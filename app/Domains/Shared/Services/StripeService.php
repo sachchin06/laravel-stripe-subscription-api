@@ -16,7 +16,10 @@ class StripeService
 
     public function __construct()
     {
-        $this->stripe = new StripeClient(config('stripe.secret'));
+        $this->stripe = new StripeClient([
+            'api_key' => config('stripe.secret'),
+            'stripe_version' => config('stripe.api_version'),
+        ]);
     }
 
     /**
@@ -268,12 +271,20 @@ class StripeService
     }
 
     /**
-     * Retrieve upcoming invoice
+     * Preview the next invoice. The old invoices->upcoming() endpoint was
+     * removed in the 2025 API versions; createPreview replaces it.
+     * Returns null when Stripe has nothing to preview (no subscription).
      */
-    public function retrieveUpcomingInvoice(string $customerId): ?\Stripe\Invoice
+    public function previewUpcomingInvoice(string $customerId, ?string $subscriptionId = null): ?\Stripe\Invoice
     {
+        $params = ['customer' => $customerId];
+
+        if ($subscriptionId) {
+            $params['subscription'] = $subscriptionId;
+        }
+
         try {
-            return $this->stripe->invoices->upcoming(['customer' => $customerId]);
+            return $this->stripe->invoices->createPreview($params);
         } catch (\Stripe\Exception\InvalidRequestException $e) {
             return null;
         }

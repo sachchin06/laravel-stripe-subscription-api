@@ -11,7 +11,10 @@ class StripeCheckoutService
 
     public function __construct()
     {
-        $this->stripe = new StripeClient(config('stripe.secret'));
+        $this->stripe = new StripeClient([
+            'api_key' => config('stripe.secret'),
+            'stripe_version' => config('stripe.api_version'),
+        ]);
     }
 
     public function createSession(

@@ -28,7 +28,8 @@ class HandleInvoicePaid implements ShouldQueue
 
     public function handle(SubscriptionManager $subscriptionManager): void
     {
-        $stripeSubscriptionId = $this->invoiceData['subscription'] ?? null;
+        // Since the 2025 API versions the subscription ID lives under the invoice's parent.
+        $stripeSubscriptionId = data_get($this->invoiceData, 'parent.subscription_details.subscription');
 
         if (!$stripeSubscriptionId) {
             Log::info('Invoice is not linked to a subscription; skipped', [

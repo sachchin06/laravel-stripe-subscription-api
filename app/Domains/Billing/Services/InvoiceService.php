@@ -89,29 +89,22 @@ class InvoiceService
             return null;
         }
 
-        try {
-            $invoice = $this->stripeService->client()->invoices->upcoming([
-                'customer' => $user->stripe_customer_id,
-            ]);
+        $invoice = $this->stripeService->previewUpcomingInvoice(
+            $user->stripe_customer_id,
+            $user->activeSubscription()?->stripe_subscription_id
+        );
 
-            return [
-                'amount_due' => $invoice->amount_due,
-                'currency' => strtoupper($invoice->currency),
-                'period_start' => $invoice->period_start,
-                'period_end' => $invoice->period_end,
-                'next_payment_attempt' => $invoice->next_payment_attempt,
-                'description' => $invoice->lines->data[0]->description ?? null,
-            ];
-
-        } catch (\Stripe\Exception\InvalidRequestException $e) {
-            // No upcoming invoice
-            return null;
-        } catch (\Exception $e) {
-            \Log::error('Failed to fetch upcoming invoice', [
-                'user_id' => $user->id,
-                'error' => $e->getMessage(),
-            ]);
+        if (!$invoice) {
             return null;
         }
+
+        return [
+            'amount_due' => $invoice->amount_due,
+            'currency' => strtoupper($invoice->currency),
+            'period_start' => $invoice->period_start,
+            'period_end' => $invoice->period_end,
+            'next_payment_attempt' => $invoice->next_payment_attempt,
+            'description' => $invoice->lines->data[0]->description ?? null,
+        ];
     }
 }
