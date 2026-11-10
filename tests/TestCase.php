@@ -23,6 +23,12 @@ abstract class TestCase extends BaseTestCase
         parent::setUp();
 
         $this->stripe = $this->mock(StripeService::class);
+
+        // Signature verification is local cryptography with no network call,
+        // so the real implementation runs: webhook tests then exercise it.
+        $this->stripe->shouldReceive('constructWebhookEvent')
+            ->andReturnUsing([new StripeService, 'constructWebhookEvent'])
+            ->byDefault();
     }
 
     protected function tearDown(): void
