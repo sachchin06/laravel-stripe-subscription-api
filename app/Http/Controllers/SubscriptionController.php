@@ -85,10 +85,10 @@ class SubscriptionController extends Controller
      *         )
      *     ),
      *     @OA\Response(
-     *         response=400,
-     *         description="Already subscribed or invalid price",
+     *         response=409,
+     *         description="User already has an active subscription",
      *         @OA\JsonContent(
-     *             @OA\Property(property="message", type="string", example="You already have an active subscription for this plan.")
+     *             @OA\Property(property="message", type="string", example="You already have an active subscription. To switch plans, use POST /api/subscriptions/change-plan.")
      *         )
      *     ),
      *     @OA\Response(

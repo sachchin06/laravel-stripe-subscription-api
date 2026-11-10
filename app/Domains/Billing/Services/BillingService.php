@@ -5,7 +5,6 @@ namespace App\Domains\Billing\Services;
 use App\Domains\Shared\Services\StripeService;
 use App\Domains\Billing\DTOs\CheckoutSessionData;
 use App\Models\User;
-use App\Models\PlanPrice;
 use App\Exceptions\SubscriptionException;
 
 /**
@@ -93,17 +92,12 @@ class BillingService
     }
 
     /**
-     * Validate that user can subscribe to the given plan price
+     * A user may hold one active or trialing subscription at a time. Switching
+     * plans goes through change-plan, which updates the existing subscription.
      */
-    public function validateSubscriptionEligibility(User $user, PlanPrice $planPrice): void
+    public function ensureNoActiveSubscription(User $user): void
     {
-        // Check if user already has active subscription for this plan
-        $hasActiveSubscription = $user->subscriptions()
-            ->whereIn('stripe_status', ['active', 'trialing'])
-            ->where('plan_price_id', $planPrice->id)
-            ->exists();
-
-        if ($hasActiveSubscription) {
+        if ($user->hasActiveSubscription()) {
             throw SubscriptionException::alreadySubscribed();
         }
     }

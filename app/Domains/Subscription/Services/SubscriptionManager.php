@@ -233,16 +233,4 @@ class SubscriptionManager
             ->with(['plan', 'price'])
             ->first();
     }
-
-    /**
-     * Check if user can subscribe to a plan
-     */
-    public function canSubscribeTo(User $user, PlanPrice $planPrice): bool
-    {
-        // Check if user already has active subscription for this plan
-        return !$user->subscriptions()
-            ->whereIn('stripe_status', ['active', 'trialing'])
-            ->where('plan_price_id', $planPrice->id)
-            ->exists();
-    }
 }

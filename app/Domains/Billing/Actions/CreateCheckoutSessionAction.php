@@ -34,8 +34,7 @@ class CreateCheckoutSessionAction
             throw SubscriptionException::invalidPlanPrice();
         }
 
-        // Validate subscription eligibility
-        $this->billingService->validateSubscriptionEligibility($user, $planPrice);
+        $this->billingService->ensureNoActiveSubscription($user);
 
         // Get or create Stripe customer
         $customer = $this->billingService->getOrCreateCustomer($user);
