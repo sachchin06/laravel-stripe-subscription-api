@@ -53,7 +53,7 @@ class User extends Authenticatable
     public function activeSubscription(): ?Subscription
     {
         return $this->subscriptions()
-            ->whereIn('stripe_status', ['active', 'trialing'])
+            ->active()
             ->with(['plan', 'price'])
             ->first();
     }
@@ -64,7 +64,7 @@ class User extends Authenticatable
     public function hasActiveSubscription(): bool
     {
         return $this->subscriptions()
-            ->whereIn('stripe_status', ['active', 'trialing'])
+            ->active()
             ->exists();
     }
 
@@ -74,7 +74,7 @@ class User extends Authenticatable
     public function hasActiveSubscriptionForPrice(string $stripePriceId): bool
     {
         return $this->subscriptions()
-            ->whereIn('stripe_status', ['active', 'trialing'])
+            ->active()
             ->whereHas('price', function ($query) use ($stripePriceId) {
                 $query->where('stripe_price_id', $stripePriceId);
             })
@@ -87,7 +87,7 @@ class User extends Authenticatable
     public function isSubscribedTo(string $planSlug): bool
     {
         return $this->subscriptions()
-            ->whereIn('stripe_status', ['active', 'trialing'])
+            ->active()
             ->whereHas('plan', function ($query) use ($planSlug) {
                 $query->where('slug', $planSlug);
             })

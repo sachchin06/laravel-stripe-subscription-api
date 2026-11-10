@@ -24,13 +24,13 @@ class PlanPriceSeeder extends Seeder
                 'stripe_product_id' => 'prod_TQDHtRRM99Ei9Z',
                 'prices' => [
                     [
-                        'interval' => 'monthly',
+                        'interval' => 'month',
                         'price' => 2000, // $20
                         'currency' => 'usd',
                         'stripe_price_id' => 'price_1STMrGHQSIupoCydZKpi5Z2l',
                     ],
                     [
-                        'interval' => 'yearly',
+                        'interval' => 'year',
                         'price' => 20000, // $200
                         'currency' => 'usd',
                         'stripe_price_id' => 'price_1STMrGHQSIupoCydlWBMZam4',
@@ -44,13 +44,13 @@ class PlanPriceSeeder extends Seeder
                 'stripe_product_id' => 'prod_TQDKhSXR5kiICN',
                 'prices' => [
                     [
-                        'interval' => 'monthly',
+                        'interval' => 'month',
                         'price' => 3000, // $30
                         'currency' => 'usd',
                         'stripe_price_id' => 'price_1STMtkHQSIupoCydA2dTOSke',
                     ],
                     [
-                        'interval' => 'yearly',
+                        'interval' => 'year',
                         'price' => 32000, // $320
                         'currency' => 'usd',
                         'stripe_price_id' => 'price_1STMtkHQSIupoCydpCBFl8D2',

@@ -4,10 +4,12 @@ namespace App\Http\Controllers;
 
 use App\Domains\Subscription\Services\ProductService;
 use App\Domains\Subscription\Services\PlanService;
+use App\Enums\BillingInterval;
 use App\Http\Resources\PlanResource;
 use App\Models\Plan;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Validation\Rule;
 
 /**
  * Controller for product/plan management (admin operations)
@@ -65,7 +67,7 @@ class ProductController extends Controller
      *                 property="prices",
      *                 type="array",
      *                 @OA\Items(
-     *                     @OA\Property(property="interval", type="string", enum={"monthly", "yearly"}),
+     *                     @OA\Property(property="interval", type="string", enum={"month", "year"}),
      *                     @OA\Property(property="price", type="integer", description="Price in cents", example=9900),
      *                     @OA\Property(property="currency", type="string", example="usd")
      *                 )
@@ -91,7 +93,7 @@ class ProductController extends Controller
             'slug' => 'nullable|string|max:255|unique:plans,slug',
             'description' => 'nullable|string',
             'prices' => 'required|array|min:1',
-            'prices.*.interval' => 'required|in:monthly,yearly',
+            'prices.*.interval' => ['required', Rule::enum(BillingInterval::class)],
             'prices.*.price' => 'required|integer|min:0',
             'prices.*.currency' => 'nullable|string|size:3',
         ]);
@@ -223,7 +225,7 @@ class ProductController extends Controller
      *         required=true,
      *         @OA\JsonContent(
      *             required={"interval", "price"},
-     *             @OA\Property(property="interval", type="string", enum={"monthly", "yearly"}),
+     *             @OA\Property(property="interval", type="string", enum={"month", "year"}),
      *             @OA\Property(property="price", type="integer", description="Price in cents", example=4900),
      *             @OA\Property(property="currency", type="string", example="usd")
      *         )
@@ -243,7 +245,7 @@ class ProductController extends Controller
     public function addPrice(Request $request, Plan $product): JsonResponse
     {
         $validated = $request->validate([
-            'interval' => 'required|in:monthly,yearly',
+            'interval' => ['required', Rule::enum(BillingInterval::class)],
             'price' => 'required|integer|min:0',
             'currency' => 'nullable|string|size:3',
         ]);

@@ -3,6 +3,8 @@
 namespace App\Domains\Subscription\Services;
 
 use App\Domains\Shared\Services\StripeService;
+use App\Enums\BillingInterval;
+use App\Exceptions\SubscriptionException;
 use App\Models\Plan;
 use App\Models\PlanPrice;
 use Illuminate\Support\Facades\DB;
@@ -78,6 +80,12 @@ class ProductService
      */
     public function archivePlan(Plan $plan): bool
     {
+        // Checked before touching Stripe: the foreign keys would block the local
+        // delete anyway, and Stripe would already have been changed by then.
+        if ($plan->subscriptions()->exists()) {
+            throw SubscriptionException::planHasSubscriptions();
+        }
+
         if ($plan->stripe_product_id) {
             $this->stripeService->archiveProduct($plan->stripe_product_id);
         }
@@ -122,7 +130,11 @@ class ProductService
                     continue;
                 }
 
-                $interval = $stripePrice->recurring->interval === 'year' ? 'yearly' : 'monthly';
+                $interval = BillingInterval::tryFrom($stripePrice->recurring->interval);
+
+                if (!$interval) {
+                    continue; // Daily and weekly prices are not offered by this app.
+                }
 
                 PlanPrice::updateOrCreate(
                     ['stripe_price_id' => $stripePrice->id],
@@ -191,7 +203,7 @@ class ProductService
                     'unit_amount' => $price->price,
                     'currency' => $price->currency,
                     'recurring' => [
-                        'interval' => $price->interval === 'yearly' ? 'year' : 'month',
+                        'interval' => $price->interval->value,
                     ],
                     'metadata' => ['plan_id' => $plan->id],
                 ], $this->idempotencyKey('price', $price));

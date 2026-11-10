@@ -2,6 +2,7 @@
 
 namespace App\Domains\Subscription\Services;
 
+use App\Enums\BillingInterval;
 use App\Models\Plan;
 use App\Models\PlanPrice;
 use Illuminate\Database\Eloquent\Collection;
@@ -58,7 +59,7 @@ class PlanService
      */
     public function getMonthlyPrice(Plan $plan): ?PlanPrice
     {
-        return $plan->prices()->where('interval', 'month')->first();
+        return $plan->prices()->where('interval', BillingInterval::MONTH)->first();
     }
 
     /**
@@ -66,6 +67,6 @@ class PlanService
      */
     public function getYearlyPrice(Plan $plan): ?PlanPrice
     {
-        return $plan->prices()->where('interval', 'year')->first();
+        return $plan->prices()->where('interval', BillingInterval::YEAR)->first();
     }
 }

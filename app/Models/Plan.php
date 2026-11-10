@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Enums\BillingInterval;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 
@@ -26,11 +27,11 @@ class Plan extends Model
 
     public function getMonthlyPrice(): ?PlanPrice
     {
-        return $this->prices()->where('interval', 'month')->first();
+        return $this->prices()->where('interval', BillingInterval::MONTH)->first();
     }
 
     public function getYearlyPrice(): ?PlanPrice
     {
-        return $this->prices()->where('interval', 'year')->first();
+        return $this->prices()->where('interval', BillingInterval::YEAR)->first();
     }
 }

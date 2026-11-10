@@ -7,6 +7,7 @@ use App\Models\Subscription;
 use App\Models\User;
 use App\Models\PlanPrice;
 use App\Domains\Subscription\DTOs\SubscriptionData;
+use App\Enums\SubscriptionStatus;
 use App\Events\SubscriptionCreated;
 use App\Events\SubscriptionUpdated;
 use App\Events\SubscriptionCanceled;
@@ -148,7 +149,7 @@ class SubscriptionManager
      */
     private function endsAt(\Stripe\Subscription $stripeSubscription): ?Carbon
     {
-        if ($stripeSubscription->status === 'canceled') {
+        if ($stripeSubscription->status === SubscriptionStatus::CANCELED->value) {
             $timestamp = $stripeSubscription->ended_at ?? $stripeSubscription->canceled_at;
         } elseif ($stripeSubscription->cancel_at) {
             $timestamp = $stripeSubscription->cancel_at;
@@ -172,12 +173,13 @@ class SubscriptionManager
 
         // Stripe first, then a single local write. No transaction is needed, and a
         // failure in Stripe leaves the local record unchanged.
-        $this->stripeService->updateSubscription($subscription->stripe_subscription_id, [
+        $stripeSubscription = $this->stripeService->updateSubscription($subscription->stripe_subscription_id, [
             'cancel_at_period_end' => true,
         ]);
 
+        // Use the end date Stripe reports, which is right for monthly and yearly prices alike.
         $subscription->update([
-            'ends_at' => now()->addMonth(), // Corrected by the customer.subscription.updated webhook
+            'ends_at' => $this->endsAt($stripeSubscription),
         ]);
 
         event(new SubscriptionCanceled($subscription));
@@ -197,7 +199,7 @@ class SubscriptionManager
         $this->stripeService->cancelSubscription($subscription->stripe_subscription_id);
 
         $subscription->update([
-            'stripe_status' => 'canceled',
+            'stripe_status' => SubscriptionStatus::CANCELED,
             'ends_at' => now(),
         ]);
 
@@ -212,7 +214,7 @@ class SubscriptionManager
     public function hasActiveSubscription(User $user): bool
     {
         return $user->subscriptions()
-            ->whereIn('stripe_status', ['active', 'trialing'])
+            ->active()
             ->exists();
     }
 
@@ -222,7 +224,7 @@ class SubscriptionManager
     public function getActiveSubscription(User $user): ?Subscription
     {
         return $user->subscriptions()
-            ->whereIn('stripe_status', ['active', 'trialing'])
+            ->active()
             ->with(['plan', 'price'])
             ->first();
     }

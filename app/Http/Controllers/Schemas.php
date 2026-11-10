@@ -41,7 +41,7 @@ namespace App\Http\Controllers;
  *     @OA\Property(property="id", type="integer", example=1),
  *     @OA\Property(property="plan_id", type="integer", example=1),
  *     @OA\Property(property="stripe_price_id", type="string", example="price_1234567890"),
- *     @OA\Property(property="price", type="number", format="float", example=29.99),
+ *     @OA\Property(property="price", type="integer", description="Smallest currency unit, e.g. cents", example=2999),
  *     @OA\Property(property="currency", type="string", example="usd"),
  *     @OA\Property(property="interval", type="string", enum={"month", "year"}, example="month"),
  *     @OA\Property(property="created_at", type="string", format="date-time")

@@ -2,6 +2,8 @@
 
 namespace App\Models;
 
+use App\Enums\SubscriptionStatus;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
@@ -21,6 +23,7 @@ class Subscription extends Model
     protected function casts(): array
     {
         return [
+            'stripe_status' => SubscriptionStatus::class,
             'trial_ends_at' => 'datetime',
             'ends_at' => 'datetime',
         ];
@@ -42,60 +45,44 @@ class Subscription extends Model
     }
 
     /**
-     * Check if subscription is active (including grace period)
+     * Active or trialing, or cancelled but still inside the paid period.
      */
     public function isActive(): bool
     {
-        return in_array($this->stripe_status, ['active', 'trialing']) || $this->isOnGracePeriod();
+        return $this->stripe_status?->isActive() || $this->isOnGracePeriod();
     }
 
-    /**
-     * Check if subscription is canceled
-     */
     public function isCanceled(): bool
     {
-        return $this->stripe_status === 'canceled';
+        return $this->stripe_status === SubscriptionStatus::CANCELED;
     }
 
-    /**
-     * Check if subscription is on grace period
-     */
     public function isOnGracePeriod(): bool
     {
-        return $this->stripe_status === 'canceled' && 
-               $this->ends_at && 
-               $this->ends_at->isFuture();
+        return $this->isCanceled() && $this->ends_at?->isFuture();
     }
 
-    /**
-     * Check if subscription has expired
-     */
     public function hasExpired(): bool
     {
-        return $this->stripe_status === 'canceled' && 
-               $this->ends_at && 
-               $this->ends_at->isPast();
+        return $this->isCanceled() && $this->ends_at?->isPast();
     }
 
-    /**
-     * Get days remaining in grace period
-     */
     public function gracePeriodDaysRemaining(): int
     {
         if (!$this->isOnGracePeriod()) {
             return 0;
         }
 
-        return max(0, now()->diffInDays($this->ends_at, false));
+        return (int) max(0, now()->diffInDays($this->ends_at, false));
     }
 
-    public function scopeActive($query)
+    public function scopeActive(Builder $query): Builder
     {
-        return $query->whereIn('stripe_status', ['active', 'trialing']);
+        return $query->whereIn('stripe_status', SubscriptionStatus::activeStatuses());
     }
 
-    public function scopeCanceled($query)
+    public function scopeCanceled(Builder $query): Builder
     {
-        return $query->where('stripe_status', 'canceled');
+        return $query->where('stripe_status', SubscriptionStatus::CANCELED);
     }
 }
