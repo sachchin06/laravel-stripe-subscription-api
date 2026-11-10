@@ -31,64 +31,62 @@ class SubscriptionManager
      */
     public function createFromCheckoutSession(array $sessionData): Subscription
     {
-        return DB::transaction(function () use ($sessionData) {
-            $session = \Stripe\Checkout\Session::constructFrom($sessionData);
-            
-            // Validate session has subscription
-            if (!$session->subscription) {
-                throw SubscriptionException::invalidCheckoutSession('No subscription found in checkout session');
-            }
+        $session = \Stripe\Checkout\Session::constructFrom($sessionData);
 
-            // Check if subscription already exists (idempotency)
-            $existingSubscription = Subscription::where('stripe_subscription_id', $session->subscription)->first();
-            if ($existingSubscription) {
-                return $existingSubscription;
-            }
+        if (!$session->subscription) {
+            throw SubscriptionException::invalidCheckoutSession('No subscription found in checkout session');
+        }
 
-            // Get subscription details from Stripe
-            $stripeSubscription = $this->stripeService->retrieveSubscription($session->subscription);
-            
-            // Find the plan price
-            $priceId = $stripeSubscription->items->data[0]->price->id;
-            $planPrice = PlanPrice::where('stripe_price_id', $priceId)->first();
-            
-            if (!$planPrice) {
-                throw SubscriptionException::invalidCheckoutSession("Price {$priceId} not found in database");
-            }
+        $userId = (int) $session->client_reference_id;
+        if (!$userId) {
+            throw SubscriptionException::invalidCheckoutSession('Missing client_reference_id');
+        }
 
-            // Get user ID from client_reference_id
-            $userId = (int) $session->client_reference_id;
-            if (!$userId) {
-                throw SubscriptionException::invalidCheckoutSession('Missing client_reference_id');
-            }
+        // Fast path for a repeated event: no need to call Stripe again.
+        $existingSubscription = Subscription::where('stripe_subscription_id', $session->subscription)->first();
+        if ($existingSubscription) {
+            return $existingSubscription;
+        }
 
-            // Update user's stripe_customer_id if not set
-            $user = User::find($userId);
-            if ($user && !$user->stripe_customer_id) {
-                $user->update(['stripe_customer_id' => $stripeSubscription->customer]);
-            }
-            
-            // Create subscription data
-            $subscriptionData = new SubscriptionData(
-                userId: $userId,
-                planId: $planPrice->plan_id,
-                planPriceId: $planPrice->id,
-                stripeSubscriptionId: $stripeSubscription->id,
-                stripeCustomerId: $stripeSubscription->customer,
-                stripeStatus: $stripeSubscription->status,
-                trialEndsAt: $stripeSubscription->trial_end ? 
-                    \Carbon\Carbon::createFromTimestamp($stripeSubscription->trial_end) : null,
-                endsAt: null
-            );
+        $stripeSubscription = $this->stripeService->retrieveSubscription($session->subscription);
 
-            // Create local subscription
-            $subscription = Subscription::create($subscriptionData->toArray());
-            
-            // Fire event
+        $priceId = $stripeSubscription->items->data[0]->price->id;
+        $planPrice = PlanPrice::where('stripe_price_id', $priceId)->first();
+
+        if (!$planPrice) {
+            throw SubscriptionException::invalidCheckoutSession("Price {$priceId} not found in database");
+        }
+
+        $user = User::find($userId);
+        if ($user && !$user->stripe_customer_id) {
+            $user->update(['stripe_customer_id' => $stripeSubscription->customer]);
+        }
+
+        $subscriptionData = new SubscriptionData(
+            userId: $userId,
+            planId: $planPrice->plan_id,
+            planPriceId: $planPrice->id,
+            stripeSubscriptionId: $stripeSubscription->id,
+            stripeCustomerId: $stripeSubscription->customer,
+            stripeStatus: $stripeSubscription->status,
+            trialEndsAt: $stripeSubscription->trial_end ?
+                \Carbon\Carbon::createFromTimestamp($stripeSubscription->trial_end) : null,
+            endsAt: null
+        );
+
+        // Two workers can handle the same checkout at the same time. createOrFirst relies on
+        // the unique index on stripe_subscription_id: the second insert fails and the row
+        // written by the first worker is returned instead of a duplicate being created.
+        $subscription = Subscription::createOrFirst(
+            ['stripe_subscription_id' => $stripeSubscription->id],
+            $subscriptionData->toArray()
+        );
+
+        if ($subscription->wasRecentlyCreated) {
             event(new SubscriptionCreated($subscription));
-            
-            return $subscription;
-        });
+        }
+
+        return $subscription;
     }
 
     /**

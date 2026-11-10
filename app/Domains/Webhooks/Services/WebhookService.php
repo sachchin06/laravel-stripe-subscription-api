@@ -9,6 +9,7 @@ use App\Domains\Webhooks\Jobs\HandleSubscriptionDeleted;
 use App\Domains\Webhooks\Jobs\HandleInvoicePaid;
 use App\Domains\Webhooks\Jobs\HandleInvoicePaymentFailed;
 use App\Exceptions\StripeWebhookException;
+use App\Models\StripeEvent;
 use Illuminate\Support\Facades\Log;
 
 /**
@@ -41,8 +42,21 @@ class WebhookService
                 'id' => $event->id,
             ]);
 
-            // Dispatch appropriate job based on event type
-            $this->dispatchWebhookJob($event);
+            // Stripe delivers events at least once, so the same event can arrive twice.
+            if (! $this->recordEvent($event)) {
+                Log::info('Duplicate Stripe event skipped', ['id' => $event->id]);
+
+                return;
+            }
+
+            try {
+                $this->dispatchWebhookJob($event);
+            } catch (\Throwable $e) {
+                // Forget the event so that Stripe's retry is processed instead of skipped.
+                StripeEvent::where('event_id', $event->id)->delete();
+
+                throw $e;
+            }
 
             Log::info('Webhook job dispatched successfully', [
                 'event_type' => $event->type,
@@ -64,8 +78,23 @@ class WebhookService
     }
 
     /**
-     * Dispatch the appropriate job for the webhook event
+     * Record the event ID. Returns false if it was already recorded.
+     *
+     * The unique index on event_id makes this safe when two deliveries of the
+     * same event arrive at the same time: only one insert can succeed.
      */
+    private function recordEvent(\Stripe\Event $event): bool
+    {
+        $inserted = StripeEvent::query()->insertOrIgnore([
+            'event_id' => $event->id,
+            'type' => $event->type,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        return $inserted === 1;
+    }
+
     private function dispatchWebhookJob(\Stripe\Event $event): void
     {
         $eventData = $event->data->object->toArray();
