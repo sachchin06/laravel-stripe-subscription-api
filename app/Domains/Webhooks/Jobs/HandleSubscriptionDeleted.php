@@ -11,74 +11,43 @@ use Illuminate\Queue\SerializesModels;
 use Illuminate\Support\Facades\Log;
 
 /**
- * Job for handling customer.subscription.deleted webhook events
- * 
- * This job processes subscription deletions from Stripe and updates
- * the local subscription status accordingly.
+ * Handles customer.subscription.deleted by re-reading the subscription from Stripe.
  */
 class HandleSubscriptionDeleted implements ShouldQueue
 {
     use Dispatchable, InteractsWithQueue, Queueable, SerializesModels;
 
-    /**
-     * Number of times the job may be attempted
-     */
     public int $tries = 3;
 
-    /**
-     * Seconds to wait before retrying
-     */
     public int $backoff = 60;
 
     public function __construct(
         private readonly array $subscriptionData
     ) {}
 
-    /**
-     * Handle the webhook event
-     */
     public function handle(SubscriptionManager $subscriptionManager): void
     {
-        try {
-            Log::info('Processing customer.subscription.deleted webhook', [
-                'stripe_subscription_id' => $this->subscriptionData['id'] ?? 'unknown',
+        $stripeSubscriptionId = $this->subscriptionData['id'];
+
+        $subscription = $subscriptionManager->syncFromStripe($stripeSubscriptionId);
+
+        if (!$subscription) {
+            Log::info('Subscription not stored locally yet; skipped', [
+                'stripe_subscription_id' => $stripeSubscriptionId,
             ]);
 
-            // Mark subscription as canceled
-            $subscriptionData = $this->subscriptionData;
-            $subscriptionData['status'] = 'canceled';
-            
-            $subscription = $subscriptionManager->updateFromStripeWebhook($subscriptionData);
-
-            if (!$subscription) {
-                Log::warning('Subscription not found for deletion', [
-                    'stripe_subscription_id' => $this->subscriptionData['id'] ?? 'unknown',
-                ]);
-                return;
-            }
-
-            Log::info('Subscription marked as deleted from webhook', [
-                'subscription_id' => $subscription->id,
-            ]);
-
-        } catch (\Exception $e) {
-            Log::error('Failed to handle customer.subscription.deleted', [
-                'error' => $e->getMessage(),
-                'stripe_subscription_id' => $this->subscriptionData['id'] ?? 'unknown',
-                'trace' => $e->getTraceAsString(),
-            ]);
-
-            // Re-throw to trigger job retry
-            throw $e;
+            return;
         }
+
+        Log::info('Subscription synced from Stripe', [
+            'subscription_id' => $subscription->id,
+            'status' => $subscription->stripe_status,
+        ]);
     }
 
-    /**
-     * Handle job failure
-     */
     public function failed(\Throwable $exception): void
     {
-        Log::error('HandleSubscriptionDeleted job failed permanently', [
+        Log::error('HandleSubscriptionDeleted failed permanently', [
             'stripe_subscription_id' => $this->subscriptionData['id'] ?? 'unknown',
             'error' => $exception->getMessage(),
         ]);

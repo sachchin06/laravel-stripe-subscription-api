@@ -11,7 +11,10 @@ use App\Events\SubscriptionCreated;
 use App\Events\SubscriptionUpdated;
 use App\Events\SubscriptionCanceled;
 use App\Exceptions\SubscriptionException;
+use Carbon\Carbon;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 
 /**
  * High-level subscription management service
@@ -90,31 +93,73 @@ class SubscriptionManager
     }
 
     /**
-     * Update subscription status from Stripe webhook
+     * Overwrite the local subscription with its current state in Stripe.
+     *
+     * Webhook payloads can arrive late or out of order, so they are only used to
+     * learn which subscription changed. The state written here always comes from
+     * a fresh API call, which means an old event can never overwrite newer data.
+     * Returns null if the subscription is not stored locally yet; the
+     * checkout.session.completed handler creates it.
      */
-    public function updateFromStripeWebhook(array $stripeSubscriptionData): ?Subscription
+    public function syncFromStripe(string $stripeSubscriptionId): ?Subscription
     {
-        $stripeSubscription = \Stripe\Subscription::constructFrom($stripeSubscriptionData);
-        
-        $subscription = Subscription::where('stripe_subscription_id', $stripeSubscription->id)->first();
-        
-        if (!$subscription) {
+        if (!Subscription::where('stripe_subscription_id', $stripeSubscriptionId)->exists()) {
             return null;
         }
 
-        return DB::transaction(function () use ($subscription, $stripeSubscription) {
-            $subscription->update([
-                'stripe_status' => $stripeSubscription->status,
-                'trial_ends_at' => $stripeSubscription->trial_end ? 
-                    \Carbon\Carbon::createFromTimestamp($stripeSubscription->trial_end) : null,
-                'ends_at' => $stripeSubscription->cancel_at ? 
-                    \Carbon\Carbon::createFromTimestamp($stripeSubscription->cancel_at) : null,
-            ]);
+        // Serialise syncs of the same subscription so two jobs cannot interleave
+        // their read from Stripe and their write to the database.
+        return Cache::lock("stripe-subscription-sync:{$stripeSubscriptionId}", 30)
+            ->block(10, function () use ($stripeSubscriptionId) {
+                $stripeSubscription = $this->stripeService->retrieveSubscription($stripeSubscriptionId);
+                $subscription = Subscription::where('stripe_subscription_id', $stripeSubscriptionId)->firstOrFail();
 
-            event(new SubscriptionUpdated($subscription));
-            
-            return $subscription;
-        });
+                $attributes = [
+                    'stripe_status' => $stripeSubscription->status,
+                    'trial_ends_at' => $stripeSubscription->trial_end ?
+                        Carbon::createFromTimestamp($stripeSubscription->trial_end) : null,
+                    'ends_at' => $this->endsAt($stripeSubscription),
+                ];
+
+                // Plan changes made in the Stripe Billing Portal reach us this way.
+                $priceId = $stripeSubscription->items->data[0]->price->id;
+                $planPrice = PlanPrice::where('stripe_price_id', $priceId)->first();
+
+                if ($planPrice) {
+                    $attributes['plan_id'] = $planPrice->plan_id;
+                    $attributes['plan_price_id'] = $planPrice->id;
+                } else {
+                    Log::warning('Stripe price not found locally; plan left unchanged', [
+                        'stripe_subscription_id' => $stripeSubscriptionId,
+                        'stripe_price_id' => $priceId,
+                    ]);
+                }
+
+                $subscription->update($attributes);
+
+                event(new SubscriptionUpdated($subscription));
+
+                return $subscription;
+            });
+    }
+
+    /**
+     * When access ends: the end date for a cancelled subscription, or the
+     * scheduled cancellation date for one set to cancel at period end.
+     */
+    private function endsAt(\Stripe\Subscription $stripeSubscription): ?Carbon
+    {
+        if ($stripeSubscription->status === 'canceled') {
+            $timestamp = $stripeSubscription->ended_at ?? $stripeSubscription->canceled_at;
+        } elseif ($stripeSubscription->cancel_at) {
+            $timestamp = $stripeSubscription->cancel_at;
+        } elseif ($stripeSubscription->cancel_at_period_end) {
+            $timestamp = $stripeSubscription->items->data[0]->current_period_end;
+        } else {
+            $timestamp = null;
+        }
+
+        return $timestamp ? Carbon::createFromTimestamp($timestamp) : null;
     }
 
     /**
