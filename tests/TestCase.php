@@ -7,6 +7,7 @@ use Illuminate\Foundation\Testing\TestCase as BaseTestCase;
 use Illuminate\Testing\TestResponse;
 use Mockery\MockInterface;
 use Stripe\ApiRequestor;
+use Tests\Support\FakeStripeHttpClient;
 
 abstract class TestCase extends BaseTestCase
 {
@@ -21,6 +22,10 @@ abstract class TestCase extends BaseTestCase
     protected function setUp(): void
     {
         parent::setUp();
+
+        // Second line of defence: if any code builds a real Stripe client, its
+        // requests fail here. Tests that need the SDK install their own fake.
+        FakeStripeHttpClient::install(fn () => throw new \LogicException('Tests must not call the real Stripe API.'));
 
         $this->stripe = $this->mock(StripeService::class);
 
