@@ -165,7 +165,7 @@ With no frontend, `FRONTEND_URL` defaults to the API, which serves basic success
 ## Running tests
 
 ```bash
-vendor/bin/pest            # 147 tests
+vendor/bin/pest            # 148 tests
 vendor/bin/pint --test     # code style check
 ```
 
@@ -237,7 +237,6 @@ Known limitations:
 - **Usage limits can be exceeded slightly under concurrency.** The usage check and the usage record are separate steps, so simultaneous requests near the limit can all pass.
 - **Duplicate subscriptions are only logged.** If a user still ends up with two paid subscriptions (a session paid in the moment before it is expired), both are stored and a warning is logged. Nothing cancels or refunds the extra one.
 - **Idempotency keys last 24 hours at Stripe.** A failed create retried within 24 hours with changed parameters is rejected by Stripe. A retry after 24 hours is no longer protected against duplicates.
-- **Unconfigured plans get no gated features.** A plan created through the API that is missing from `config/features.php` gets free-tier usage limits, but no features at all, not even the free-tier ones.
 
 Roadmap:
 - Metered, usage-based billing

@@ -54,3 +54,14 @@ test('a Pro subscriber has unlimited api_calls', function () {
         ->assertJsonPath('data.api_calls.limit', null)
         ->assertJsonPath('data.api_calls.unlimited', true);
 });
+
+test('a plan missing from config/features.php gets the free tier features', function () {
+    $user = subscribedUser('enterprise');
+
+    expect($user->canAccessFeature('basic_api_access'))->toBeTrue()
+        ->and($user->canAccessFeature('profile_management'))->toBeTrue()
+        ->and($user->canAccessFeature('advanced_analytics'))->toBeFalse();
+
+    Sanctum::actingAs($user);
+    $this->getJson('/api/reports/usage')->assertForbidden();
+});
