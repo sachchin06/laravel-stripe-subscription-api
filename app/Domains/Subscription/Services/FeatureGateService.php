@@ -60,10 +60,19 @@ class FeatureGateService
         return in_array($featureSlug, $freeFeatures);
     }
 
+    /**
+     * A plan missing from config/features.php (e.g. one created through the
+     * products API) gets the free tier's features, the same fallback
+     * UsageTrackingService uses for limits.
+     */
     private function planHasFeature(Plan $plan, string $featureSlug): bool
     {
-        $planFeatures = config("features.plans.{$plan->slug}", []);
+        $planFeatures = config("features.plans.{$plan->slug}");
 
-        return in_array($featureSlug, $planFeatures);
+        if (! is_array($planFeatures)) {
+            return $this->isFeatureFree($featureSlug);
+        }
+
+        return in_array($featureSlug, $planFeatures, true);
     }
 }

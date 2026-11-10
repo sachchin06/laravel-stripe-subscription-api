@@ -4,7 +4,7 @@ A REST API for SaaS subscription billing on Stripe, built with Laravel 12.
 
 [![CI](https://github.com/sachchin06/laravel-stripe-subscription-api/actions/workflows/ci.yml/badge.svg)](https://github.com/sachchin06/laravel-stripe-subscription-api/actions/workflows/ci.yml)
 [![Licence: MIT](https://img.shields.io/github/license/sachchin06/laravel-stripe-subscription-api)](LICENSE)
-![PHP 8.2+](https://img.shields.io/badge/PHP-8.2%2B-777BB4)
+![PHP 8.3+](https://img.shields.io/badge/PHP-8.3%2B-777BB4)
 
 ## Overview
 
@@ -70,7 +70,7 @@ The webhook endpoint handles `checkout.session.completed`, `customer.subscriptio
 
 | Area | Choice |
 |------|--------|
-| Language and framework | PHP 8.2+ (8.3+ for the test tools), Laravel 12 |
+| Language and framework | PHP 8.3+, Laravel 12 |
 | Authentication | Laravel Sanctum 4 |
 | Payments | Stripe PHP SDK 18, pinned to API version `2025-10-29.clover` |
 | Database | MySQL in development; in-memory SQLite in tests |
@@ -83,7 +83,7 @@ The webhook endpoint handles `checkout.session.completed`, `customer.subscriptio
 
 ### Requirements
 
-- PHP 8.2 or later (8.3 or later to run the tests), with `pdo_mysql`, and `pdo_sqlite` for the tests
+- PHP 8.3 or later, with `pdo_mysql`, and `pdo_sqlite` for the tests
 - Composer
 - MySQL
 - A Stripe account in test mode
@@ -165,7 +165,7 @@ With no frontend, `FRONTEND_URL` defaults to the API, which serves basic success
 ## Running tests
 
 ```bash
-vendor/bin/pest            # 147 tests
+vendor/bin/pest            # 148 tests
 vendor/bin/pint --test     # code style check
 ```
 
@@ -237,7 +237,6 @@ Known limitations:
 - **Usage limits can be exceeded slightly under concurrency.** The usage check and the usage record are separate steps, so simultaneous requests near the limit can all pass.
 - **Duplicate subscriptions are only logged.** If a user still ends up with two paid subscriptions (a session paid in the moment before it is expired), both are stored and a warning is logged. Nothing cancels or refunds the extra one.
 - **Idempotency keys last 24 hours at Stripe.** A failed create retried within 24 hours with changed parameters is rejected by Stripe. A retry after 24 hours is no longer protected against duplicates.
-- **Unconfigured plans get no gated features.** A plan created through the API that is missing from `config/features.php` gets free-tier usage limits, but no features at all, not even the free-tier ones.
 
 Roadmap:
 - Metered, usage-based billing
