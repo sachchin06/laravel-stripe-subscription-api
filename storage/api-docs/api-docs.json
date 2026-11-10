@@ -261,6 +261,834 @@
                 ]
             }
         },
+        "/api/billing/invoices": {
+            "get": {
+                "tags": [
+                    "Billing"
+                ],
+                "summary": "Get user's invoice history",
+                "operationId": "53d652ea3da32f910c2c1fe805c78606",
+                "parameters": [
+                    {
+                        "name": "limit",
+                        "in": "query",
+                        "description": "Number of invoices to retrieve (default: 10, max: 100)",
+                        "required": false,
+                        "schema": {
+                            "type": "integer",
+                            "default": 10,
+                            "maximum": 100,
+                            "minimum": 1
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Invoice history retrieved successfully",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "data": {
+                                            "type": "array",
+                                            "items": {
+                                                "properties": {
+                                                    "id": {
+                                                        "type": "string",
+                                                        "example": "in_1234567890"
+                                                    },
+                                                    "number": {
+                                                        "type": "string",
+                                                        "example": "INV-2024-001"
+                                                    },
+                                                    "amount_paid": {
+                                                        "type": "integer",
+                                                        "example": 2999
+                                                    },
+                                                    "amount_due": {
+                                                        "type": "integer",
+                                                        "example": 0
+                                                    },
+                                                    "currency": {
+                                                        "type": "string",
+                                                        "example": "USD"
+                                                    },
+                                                    "status": {
+                                                        "type": "string",
+                                                        "example": "paid"
+                                                    },
+                                                    "created": {
+                                                        "type": "integer",
+                                                        "example": 1640995200
+                                                    },
+                                                    "due_date": {
+                                                        "type": "integer",
+                                                        "example": 1640995200
+                                                    },
+                                                    "hosted_invoice_url": {
+                                                        "type": "string",
+                                                        "example": "https://invoice.stripe.com/i/..."
+                                                    },
+                                                    "invoice_pdf": {
+                                                        "type": "string",
+                                                        "example": "https://pay.stripe.com/invoice/.../pdf"
+                                                    },
+                                                    "description": {
+                                                        "type": "string",
+                                                        "example": "Pro Plan - Monthly"
+                                                    }
+                                                },
+                                                "type": "object"
+                                            }
+                                        }
+                                    },
+                                    "type": "object"
+                                }
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthenticated"
+                    }
+                },
+                "security": [
+                    {
+                        "sanctum": []
+                    }
+                ]
+            }
+        },
+        "/api/billing/upcoming-invoice": {
+            "get": {
+                "tags": [
+                    "Billing"
+                ],
+                "summary": "Get upcoming invoice preview",
+                "operationId": "28e5d221df8c30bdb08cf538fcf6ed93",
+                "responses": {
+                    "200": {
+                        "description": "Upcoming invoice retrieved successfully",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "data": {
+                                            "oneOf": [
+                                                {
+                                                    "properties": {
+                                                        "amount_due": {
+                                                            "type": "integer",
+                                                            "example": 2999
+                                                        },
+                                                        "currency": {
+                                                            "type": "string",
+                                                            "example": "USD"
+                                                        },
+                                                        "period_start": {
+                                                            "type": "integer",
+                                                            "example": 1640995200
+                                                        },
+                                                        "period_end": {
+                                                            "type": "integer",
+                                                            "example": 1643673600
+                                                        },
+                                                        "next_payment_attempt": {
+                                                            "type": "integer",
+                                                            "example": 1643673600
+                                                        },
+                                                        "description": {
+                                                            "type": "string",
+                                                            "example": "Pro Plan - Monthly"
+                                                        }
+                                                    },
+                                                    "type": "object"
+                                                },
+                                                {
+                                                    "type": "null"
+                                                }
+                                            ]
+                                        }
+                                    },
+                                    "type": "object"
+                                }
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthenticated"
+                    }
+                },
+                "security": [
+                    {
+                        "sanctum": []
+                    }
+                ]
+            }
+        },
+        "/api/billing/portal": {
+            "post": {
+                "tags": [
+                    "Billing"
+                ],
+                "summary": "Create billing portal session",
+                "operationId": "995d25aca9581915c99603ff85afb2c5",
+                "requestBody": {
+                    "required": false,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "properties": {
+                                    "return_url": {
+                                        "description": "Where the portal returns the user. Must be on the FRONTEND_URL or APP_URL host; defaults to FRONTEND_URL.",
+                                        "type": "string",
+                                        "format": "url",
+                                        "example": "https://yourapp.com/billing"
+                                    }
+                                },
+                                "type": "object"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "Billing portal session created successfully",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "portal_url": {
+                                            "description": "URL to Stripe billing portal",
+                                            "type": "string",
+                                            "format": "url",
+                                            "example": "https://billing.stripe.com/session/bps_1234567890"
+                                        }
+                                    },
+                                    "type": "object"
+                                }
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "Unable to create billing portal session",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "message": {
+                                            "type": "string",
+                                            "example": "Unable to create billing portal session"
+                                        }
+                                    },
+                                    "type": "object"
+                                }
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthenticated"
+                    }
+                },
+                "security": [
+                    {
+                        "sanctum": []
+                    }
+                ]
+            }
+        },
+        "/api/billing/usage": {
+            "get": {
+                "tags": [
+                    "Billing"
+                ],
+                "summary": "Get user's usage summary",
+                "operationId": "e6c2b83ec8d8eebac66919a8fcc13723",
+                "responses": {
+                    "200": {
+                        "description": "Usage summary retrieved successfully",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "data": {
+                                            "properties": {
+                                                "api_calls": {
+                                                    "properties": {
+                                                        "current": {
+                                                            "type": "integer",
+                                                            "example": 1250
+                                                        },
+                                                        "limit": {
+                                                            "type": "integer",
+                                                            "example": 10000
+                                                        },
+                                                        "percentage": {
+                                                            "type": "number",
+                                                            "format": "float",
+                                                            "example": 12.5
+                                                        },
+                                                        "unlimited": {
+                                                            "type": "boolean",
+                                                            "example": false
+                                                        }
+                                                    },
+                                                    "type": "object"
+                                                },
+                                                "storage_mb": {
+                                                    "properties": {
+                                                        "current": {
+                                                            "type": "integer",
+                                                            "example": 450
+                                                        },
+                                                        "limit": {
+                                                            "type": "integer",
+                                                            "example": 1000
+                                                        },
+                                                        "percentage": {
+                                                            "type": "number",
+                                                            "format": "float",
+                                                            "example": 45
+                                                        },
+                                                        "unlimited": {
+                                                            "type": "boolean",
+                                                            "example": false
+                                                        }
+                                                    },
+                                                    "type": "object"
+                                                },
+                                                "team_members": {
+                                                    "properties": {
+                                                        "current": {
+                                                            "type": "integer",
+                                                            "example": 3
+                                                        },
+                                                        "limit": {
+                                                            "type": "integer",
+                                                            "example": 5
+                                                        },
+                                                        "percentage": {
+                                                            "type": "number",
+                                                            "format": "float",
+                                                            "example": 60
+                                                        },
+                                                        "unlimited": {
+                                                            "type": "boolean",
+                                                            "example": false
+                                                        }
+                                                    },
+                                                    "type": "object"
+                                                }
+                                            },
+                                            "type": "object"
+                                        }
+                                    },
+                                    "type": "object"
+                                }
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthenticated"
+                    }
+                },
+                "security": [
+                    {
+                        "sanctum": []
+                    }
+                ]
+            }
+        },
+        "/api/products": {
+            "get": {
+                "tags": [
+                    "Products"
+                ],
+                "summary": "List all products/plans",
+                "operationId": "1bfaa78d1c2c3848ab8165c5dadcad3e",
+                "responses": {
+                    "200": {
+                        "description": "List of products",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "data": {
+                                            "type": "array",
+                                            "items": {
+                                                "$ref": "#/components/schemas/Plan"
+                                            }
+                                        }
+                                    },
+                                    "type": "object"
+                                }
+                            }
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "sanctum": []
+                    }
+                ]
+            },
+            "post": {
+                "tags": [
+                    "Products"
+                ],
+                "summary": "Create a new product/plan with prices",
+                "operationId": "e8185e307706e2cd84bbcf5171e2f09d",
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "required": [
+                                    "name",
+                                    "prices"
+                                ],
+                                "properties": {
+                                    "name": {
+                                        "type": "string",
+                                        "example": "Enterprise"
+                                    },
+                                    "slug": {
+                                        "type": "string",
+                                        "example": "enterprise"
+                                    },
+                                    "description": {
+                                        "type": "string",
+                                        "example": "Enterprise plan with all features"
+                                    },
+                                    "prices": {
+                                        "type": "array",
+                                        "items": {
+                                            "properties": {
+                                                "interval": {
+                                                    "type": "string",
+                                                    "enum": [
+                                                        "month",
+                                                        "year"
+                                                    ]
+                                                },
+                                                "price": {
+                                                    "description": "Price in cents",
+                                                    "type": "integer",
+                                                    "example": 9900
+                                                },
+                                                "currency": {
+                                                    "type": "string",
+                                                    "example": "usd"
+                                                }
+                                            },
+                                            "type": "object"
+                                        }
+                                    }
+                                },
+                                "type": "object"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "201": {
+                        "description": "Product created successfully",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/components/schemas/Plan"
+                                        },
+                                        "message": {
+                                            "type": "string",
+                                            "example": "Product created successfully"
+                                        }
+                                    },
+                                    "type": "object"
+                                }
+                            }
+                        }
+                    },
+                    "422": {
+                        "description": "Validation error"
+                    },
+                    "502": {
+                        "description": "Payment provider error"
+                    }
+                },
+                "security": [
+                    {
+                        "sanctum": []
+                    }
+                ]
+            }
+        },
+        "/api/products/{id}": {
+            "get": {
+                "tags": [
+                    "Products"
+                ],
+                "summary": "Get a specific product/plan",
+                "operationId": "7ab21ddb713501f3d4c2914892c02a21",
+                "parameters": [
+                    {
+                        "name": "id",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "integer"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Product details",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/components/schemas/Plan"
+                                        }
+                                    },
+                                    "type": "object"
+                                }
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "Product not found"
+                    }
+                },
+                "security": [
+                    {
+                        "sanctum": []
+                    }
+                ]
+            },
+            "put": {
+                "tags": [
+                    "Products"
+                ],
+                "summary": "Update a product/plan",
+                "operationId": "6a7e11900844cd85cff66e662b82bd4c",
+                "parameters": [
+                    {
+                        "name": "id",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "integer"
+                        }
+                    }
+                ],
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "properties": {
+                                    "name": {
+                                        "type": "string",
+                                        "example": "Enterprise Plus"
+                                    },
+                                    "description": {
+                                        "type": "string",
+                                        "example": "Updated description"
+                                    }
+                                },
+                                "type": "object"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "Product updated successfully",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/components/schemas/Plan"
+                                        },
+                                        "message": {
+                                            "type": "string"
+                                        }
+                                    },
+                                    "type": "object"
+                                }
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "Product not found"
+                    },
+                    "502": {
+                        "description": "Payment provider error"
+                    }
+                },
+                "security": [
+                    {
+                        "sanctum": []
+                    }
+                ]
+            },
+            "delete": {
+                "tags": [
+                    "Products"
+                ],
+                "summary": "Archive a product/plan",
+                "operationId": "e80a6ca46716acee6b47ea1ac91663c0",
+                "parameters": [
+                    {
+                        "name": "id",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "integer"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Product archived successfully",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "message": {
+                                            "type": "string"
+                                        }
+                                    },
+                                    "type": "object"
+                                }
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "Product not found"
+                    },
+                    "502": {
+                        "description": "Payment provider error"
+                    }
+                },
+                "security": [
+                    {
+                        "sanctum": []
+                    }
+                ]
+            }
+        },
+        "/api/products/{id}/prices": {
+            "post": {
+                "tags": [
+                    "Products"
+                ],
+                "summary": "Add a new price to a product",
+                "operationId": "bac4ca2bc8676158cb1b7f6cd3db2091",
+                "parameters": [
+                    {
+                        "name": "id",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "integer"
+                        }
+                    }
+                ],
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "required": [
+                                    "interval",
+                                    "price"
+                                ],
+                                "properties": {
+                                    "interval": {
+                                        "type": "string",
+                                        "enum": [
+                                            "month",
+                                            "year"
+                                        ]
+                                    },
+                                    "price": {
+                                        "description": "Price in cents",
+                                        "type": "integer",
+                                        "example": 4900
+                                    },
+                                    "currency": {
+                                        "type": "string",
+                                        "example": "usd"
+                                    }
+                                },
+                                "type": "object"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "201": {
+                        "description": "Price added successfully",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/components/schemas/PlanPrice"
+                                        },
+                                        "message": {
+                                            "type": "string"
+                                        }
+                                    },
+                                    "type": "object"
+                                }
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "Product not found"
+                    },
+                    "502": {
+                        "description": "Payment provider error"
+                    }
+                },
+                "security": [
+                    {
+                        "sanctum": []
+                    }
+                ]
+            }
+        },
+        "/api/products/sync": {
+            "post": {
+                "tags": [
+                    "Products"
+                ],
+                "summary": "Sync products from Stripe",
+                "operationId": "b3d08da1c4cf98be7d62b898009c84f1",
+                "requestBody": {
+                    "required": false,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "properties": {
+                                    "direction": {
+                                        "type": "string",
+                                        "default": "from",
+                                        "enum": [
+                                            "from",
+                                            "to"
+                                        ]
+                                    }
+                                },
+                                "type": "object"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "Sync completed",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "message": {
+                                            "type": "string"
+                                        },
+                                        "synced": {
+                                            "properties": {
+                                                "products": {
+                                                    "type": "integer"
+                                                },
+                                                "prices": {
+                                                    "type": "integer"
+                                                }
+                                            },
+                                            "type": "object"
+                                        }
+                                    },
+                                    "type": "object"
+                                }
+                            }
+                        }
+                    },
+                    "502": {
+                        "description": "Payment provider error"
+                    }
+                },
+                "security": [
+                    {
+                        "sanctum": []
+                    }
+                ]
+            }
+        },
+        "/api/reports/usage": {
+            "get": {
+                "tags": [
+                    "Reports"
+                ],
+                "summary": "Daily API usage for the last 30 days (requires a plan with advanced_analytics)",
+                "operationId": "347e2053a4a9d5a899b8f832b0d2f57e",
+                "responses": {
+                    "200": {
+                        "description": "Usage report",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "data": {
+                                            "properties": {
+                                                "feature": {
+                                                    "type": "string",
+                                                    "example": "api_calls"
+                                                },
+                                                "daily": {
+                                                    "type": "object",
+                                                    "example": {
+                                                        "2026-11-09": 12,
+                                                        "2026-11-10": 4
+                                                    }
+                                                },
+                                                "current_month": {
+                                                    "type": "integer",
+                                                    "example": 16
+                                                },
+                                                "limit": {
+                                                    "type": "integer",
+                                                    "example": 10000,
+                                                    "nullable": true
+                                                }
+                                            },
+                                            "type": "object"
+                                        }
+                                    },
+                                    "type": "object"
+                                }
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthenticated"
+                    },
+                    "403": {
+                        "description": "Current plan does not include advanced_analytics"
+                    },
+                    "429": {
+                        "description": "Monthly api_calls limit reached"
+                    }
+                },
+                "security": [
+                    {
+                        "sanctum": []
+                    }
+                ]
+            }
+        },
         "/api/plans": {
             "get": {
                 "tags": [
@@ -342,15 +1170,15 @@
                             }
                         }
                     },
-                    "400": {
-                        "description": "Already subscribed or invalid price",
+                    "409": {
+                        "description": "User already has an active subscription",
                         "content": {
                             "application/json": {
                                 "schema": {
                                     "properties": {
                                         "message": {
                                             "type": "string",
-                                            "example": "You already have an active subscription for this plan."
+                                            "example": "You already have an active subscription. To switch plans, use POST /api/subscriptions/change-plan."
                                         }
                                     },
                                     "type": "object"
@@ -463,6 +1291,173 @@
                     }
                 ]
             }
+        },
+        "/api/subscriptions/resume": {
+            "post": {
+                "tags": [
+                    "Subscriptions"
+                ],
+                "summary": "Resume a cancelled subscription",
+                "operationId": "95bbf67506c798d9e1534139e5800698",
+                "responses": {
+                    "200": {
+                        "description": "Subscription resumed",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "message": {
+                                            "type": "string",
+                                            "example": "Subscription resumed successfully"
+                                        },
+                                        "data": {
+                                            "$ref": "#/components/schemas/Subscription"
+                                        }
+                                    },
+                                    "type": "object"
+                                }
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "No subscription found"
+                    },
+                    "400": {
+                        "description": "Subscription cannot be resumed"
+                    }
+                },
+                "security": [
+                    {
+                        "sanctum": []
+                    }
+                ]
+            }
+        },
+        "/api/subscriptions/change-plan": {
+            "post": {
+                "tags": [
+                    "Subscriptions"
+                ],
+                "summary": "Change subscription plan/price",
+                "operationId": "8d2c6b1785db3b031f03ddb091cd83f3",
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "required": [
+                                    "price_id"
+                                ],
+                                "properties": {
+                                    "price_id": {
+                                        "description": "New Stripe price ID",
+                                        "type": "string",
+                                        "example": "price_1234567890"
+                                    }
+                                },
+                                "type": "object"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "Plan changed successfully",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "message": {
+                                            "type": "string"
+                                        },
+                                        "data": {
+                                            "$ref": "#/components/schemas/Subscription"
+                                        }
+                                    },
+                                    "type": "object"
+                                }
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "No subscription found"
+                    },
+                    "422": {
+                        "description": "Invalid price ID, or the plan is archived"
+                    }
+                },
+                "security": [
+                    {
+                        "sanctum": []
+                    }
+                ]
+            }
+        },
+        "/api/subscriptions/details": {
+            "get": {
+                "tags": [
+                    "Subscriptions"
+                ],
+                "summary": "Get detailed subscription info from Stripe",
+                "operationId": "76782b4f943eece984629596e11bab87",
+                "responses": {
+                    "200": {
+                        "description": "Subscription details from Stripe",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "data": {
+                                            "properties": {
+                                                "id": {
+                                                    "type": "string"
+                                                },
+                                                "status": {
+                                                    "type": "string"
+                                                },
+                                                "current_period_start": {
+                                                    "type": "integer"
+                                                },
+                                                "current_period_end": {
+                                                    "type": "integer"
+                                                },
+                                                "cancel_at_period_end": {
+                                                    "type": "boolean"
+                                                },
+                                                "canceled_at": {
+                                                    "type": "integer",
+                                                    "nullable": true
+                                                },
+                                                "trial_end": {
+                                                    "type": "integer",
+                                                    "nullable": true
+                                                },
+                                                "plan": {
+                                                    "type": "object"
+                                                },
+                                                "default_payment_method": {
+                                                    "type": "object",
+                                                    "nullable": true
+                                                }
+                                            },
+                                            "type": "object"
+                                        }
+                                    },
+                                    "type": "object"
+                                }
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "No subscription found"
+                    }
+                },
+                "security": [
+                    {
+                        "sanctum": []
+                    }
+                ]
+            }
         }
     },
     "components": {
@@ -550,9 +1545,9 @@
                         "example": "price_1234567890"
                     },
                     "price": {
-                        "type": "number",
-                        "format": "float",
-                        "example": 29.99
+                        "description": "Smallest currency unit, e.g. cents",
+                        "type": "integer",
+                        "example": 2999
                     },
                     "currency": {
                         "type": "string",
@@ -631,6 +1626,182 @@
                     }
                 },
                 "type": "object"
+            },
+            "Invoice": {
+                "title": "Invoice",
+                "description": "Stripe invoice model",
+                "properties": {
+                    "id": {
+                        "type": "string",
+                        "example": "in_1234567890"
+                    },
+                    "number": {
+                        "type": "string",
+                        "example": "INV-2024-001"
+                    },
+                    "amount_paid": {
+                        "description": "Amount paid in cents",
+                        "type": "integer",
+                        "example": 2999
+                    },
+                    "amount_due": {
+                        "description": "Amount due in cents",
+                        "type": "integer",
+                        "example": 0
+                    },
+                    "currency": {
+                        "type": "string",
+                        "example": "USD"
+                    },
+                    "status": {
+                        "type": "string",
+                        "enum": [
+                            "draft",
+                            "open",
+                            "paid",
+                            "void",
+                            "uncollectible"
+                        ],
+                        "example": "paid"
+                    },
+                    "created": {
+                        "description": "Unix timestamp",
+                        "type": "integer",
+                        "example": 1640995200
+                    },
+                    "due_date": {
+                        "description": "Unix timestamp",
+                        "type": "integer",
+                        "example": 1640995200
+                    },
+                    "hosted_invoice_url": {
+                        "type": "string",
+                        "format": "url",
+                        "example": "https://invoice.stripe.com/i/..."
+                    },
+                    "invoice_pdf": {
+                        "type": "string",
+                        "format": "url",
+                        "example": "https://pay.stripe.com/invoice/.../pdf"
+                    },
+                    "description": {
+                        "type": "string",
+                        "example": "Pro Plan - Monthly"
+                    }
+                },
+                "type": "object"
+            },
+            "UpcomingInvoice": {
+                "title": "Upcoming Invoice",
+                "description": "Upcoming invoice preview",
+                "properties": {
+                    "amount_due": {
+                        "description": "Amount due in cents",
+                        "type": "integer",
+                        "example": 2999
+                    },
+                    "currency": {
+                        "type": "string",
+                        "example": "USD"
+                    },
+                    "period_start": {
+                        "description": "Unix timestamp",
+                        "type": "integer",
+                        "example": 1640995200
+                    },
+                    "period_end": {
+                        "description": "Unix timestamp",
+                        "type": "integer",
+                        "example": 1643673600
+                    },
+                    "next_payment_attempt": {
+                        "description": "Unix timestamp",
+                        "type": "integer",
+                        "example": 1643673600
+                    },
+                    "description": {
+                        "type": "string",
+                        "example": "Pro Plan - Monthly"
+                    }
+                },
+                "type": "object"
+            },
+            "UsageSummary": {
+                "title": "Usage Summary",
+                "description": "User feature usage summary",
+                "properties": {
+                    "api_calls": {
+                        "properties": {
+                            "current": {
+                                "description": "Current usage this month",
+                                "type": "integer",
+                                "example": 1250
+                            },
+                            "limit": {
+                                "description": "Usage limit for current plan",
+                                "type": "integer",
+                                "example": 10000
+                            },
+                            "percentage": {
+                                "description": "Percentage of limit used",
+                                "type": "number",
+                                "format": "float",
+                                "example": 12.5
+                            },
+                            "unlimited": {
+                                "description": "Whether usage is unlimited",
+                                "type": "boolean",
+                                "example": false
+                            }
+                        },
+                        "type": "object"
+                    },
+                    "storage_mb": {
+                        "properties": {
+                            "current": {
+                                "type": "integer",
+                                "example": 450
+                            },
+                            "limit": {
+                                "type": "integer",
+                                "example": 1000
+                            },
+                            "percentage": {
+                                "type": "number",
+                                "format": "float",
+                                "example": 45
+                            },
+                            "unlimited": {
+                                "type": "boolean",
+                                "example": false
+                            }
+                        },
+                        "type": "object"
+                    },
+                    "team_members": {
+                        "properties": {
+                            "current": {
+                                "type": "integer",
+                                "example": 3
+                            },
+                            "limit": {
+                                "type": "integer",
+                                "example": 5
+                            },
+                            "percentage": {
+                                "type": "number",
+                                "format": "float",
+                                "example": 60
+                            },
+                            "unlimited": {
+                                "type": "boolean",
+                                "example": false
+                            }
+                        },
+                        "type": "object"
+                    }
+                },
+                "type": "object"
             }
         },
         "securitySchemes": {
@@ -644,6 +1815,10 @@
     },
     "tags": [
         {
+            "name": "Billing",
+            "description": "Billing and invoice management endpoints"
+        },
+        {
             "name": "Authentication",
             "description": "User authentication endpoints"
         },
@@ -654,6 +1829,14 @@
         {
             "name": "Subscriptions",
             "description": "User subscription management"
+        },
+        {
+            "name": "Products",
+            "description": "Product and plan management endpoints"
+        },
+        {
+            "name": "Reports",
+            "description": "Plan-gated reporting endpoints"
         }
     ]
 }
