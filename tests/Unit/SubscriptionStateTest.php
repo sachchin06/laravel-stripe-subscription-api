@@ -22,7 +22,7 @@ test('only active and trialing statuses count as active', function (Subscription
 ]);
 
 test('a cancelled subscription is still active until its end date', function () {
-    $this->freezeTime();
+    $this->freezeSecond(); // the datetime cast stores whole seconds
     $subscription = subscriptionWith(SubscriptionStatus::CANCELED, now()->addDays(3));
 
     expect($subscription->isActive())->toBeTrue()
