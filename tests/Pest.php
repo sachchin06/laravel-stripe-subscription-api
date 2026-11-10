@@ -1,47 +1,41 @@
 <?php
 
-/*
-|--------------------------------------------------------------------------
-| Test Case
-|--------------------------------------------------------------------------
-|
-| The closure you provide to your test functions is always bound to a specific PHPUnit test
-| case class. By default, that class is "PHPUnit\Framework\TestCase". Of course, you may
-| need to change it using the "pest()" function to bind a different classes or traits.
-|
-*/
-
-pest()->extend(Tests\TestCase::class)
- // ->use(Illuminate\Foundation\Testing\RefreshDatabase::class)
-    ->in('Feature');
+use App\Enums\SubscriptionStatus;
+use App\Models\Plan;
+use App\Models\PlanPrice;
+use App\Models\Subscription;
+use App\Models\User;
+use Illuminate\Foundation\Testing\RefreshDatabase;
+use Tests\TestCase;
 
 /*
-|--------------------------------------------------------------------------
-| Expectations
-|--------------------------------------------------------------------------
-|
-| When you're writing tests, you often need to check that values meet certain conditions. The
-| "expect()" function gives you access to a set of "expectations" methods that you can use
-| to assert different things. Of course, you may extend the Expectation API at any time.
-|
+| Every test runs real migrations on an in-memory SQLite database, which is
+| rolled back after each test. StripeService is mocked in Tests\TestCase.
 */
+pest()->extend(TestCase::class)
+    ->use(RefreshDatabase::class)
+    ->in('Feature', 'Unit');
 
-expect()->extend('toBeOne', function () {
-    return $this->toBe(1);
-});
+/**
+ * A user with one subscription to a plan with the given slug.
+ * "basic" and "pro" are the plans configured in config/features.php.
+ */
+function subscribedUser(
+    string $planSlug = 'basic',
+    SubscriptionStatus $status = SubscriptionStatus::ACTIVE,
+    array $subscription = [],
+): User {
+    $price = PlanPrice::factory()
+        ->for(Plan::factory()->slug($planSlug))
+        ->create(['stripe_price_id' => "price_{$planSlug}_month"]);
 
-/*
-|--------------------------------------------------------------------------
-| Functions
-|--------------------------------------------------------------------------
-|
-| While Pest is very powerful out-of-the-box, you may have some testing code specific to your
-| project that you don't want to repeat in every file. Here you can also expose helpers as
-| global functions to help you to reduce the number of lines of code in your test files.
-|
-*/
+    $user = User::factory()->create(['stripe_customer_id' => 'cus_test']);
 
-function something()
-{
-    // ..
+    Subscription::factory()
+        ->for($user)
+        ->forPrice($price)
+        ->status($status)
+        ->create(['stripe_subscription_id' => 'sub_test'] + $subscription);
+
+    return $user;
 }
