@@ -12,9 +12,14 @@ use Illuminate\Database\Eloquent\Collection;
  */
 class PlanService
 {
-    public function getAllPlansWithPrices(): Collection
+    /**
+     * Plans open to new subscribers. Admins pass $includeInactive to see archived ones too.
+     */
+    public function getAllPlansWithPrices(bool $includeInactive = false): Collection
     {
-        return Plan::with('prices')->get();
+        return Plan::with('prices')
+            ->when(!$includeInactive, fn ($query) => $query->active())
+            ->get();
     }
 
     public function findBySlug(string $slug): ?Plan

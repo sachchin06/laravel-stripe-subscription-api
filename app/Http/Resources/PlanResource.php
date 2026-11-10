@@ -15,6 +15,7 @@ class PlanResource extends JsonResource
             'slug' => $this->slug,
             'description' => $this->description,
             'stripe_product_id' => $this->stripe_product_id,
+            'is_active' => $this->is_active,
             'prices' => PlanPriceResource::collection($this->whenLoaded('prices')),
             'created_at' => $this->created_at,
         ];

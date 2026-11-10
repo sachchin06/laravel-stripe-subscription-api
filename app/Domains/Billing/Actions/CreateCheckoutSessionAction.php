@@ -27,6 +27,10 @@ class CreateCheckoutSessionAction
             throw SubscriptionException::invalidPlanPrice();
         }
 
+        if (!$planPrice->plan->is_active) {
+            throw SubscriptionException::planNotAvailable();
+        }
+
         $this->billingService->ensureNoActiveSubscription($user);
 
         $customer = $this->billingService->getOrCreateCustomer($user);

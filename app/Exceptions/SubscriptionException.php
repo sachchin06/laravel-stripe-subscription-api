@@ -40,9 +40,9 @@ class SubscriptionException extends Exception
         return new self($reason, 400);
     }
 
-    public static function planHasSubscriptions(): self
+    public static function planNotAvailable(): self
     {
-        return new self('This plan has subscriptions, so it cannot be deleted.', 409);
+        return new self('This plan is no longer available.', 422);
     }
 
     public function render(): JsonResponse

@@ -258,7 +258,7 @@ class SubscriptionController extends Controller
      *         )
      *     ),
      *     @OA\Response(response=404, description="No subscription found"),
-     *     @OA\Response(response=422, description="Invalid price ID")
+     *     @OA\Response(response=422, description="Invalid price ID, or the plan is archived")
      * )
      */
     public function changePlan(ChangePlanRequest $request): JsonResponse
@@ -270,6 +270,11 @@ class SubscriptionController extends Controller
         }
 
         $newPrice = PlanPrice::where('stripe_price_id', $request->validated('price_id'))->firstOrFail();
+
+        // Moving onto an archived plan counts as joining it, which is closed.
+        if (!$newPrice->plan->is_active) {
+            throw SubscriptionException::planNotAvailable();
+        }
 
         $this->stripeService->changeSubscriptionPrice(
             $subscription->stripe_subscription_id,

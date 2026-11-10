@@ -4,7 +4,6 @@ namespace App\Domains\Subscription\Services;
 
 use App\Domains\Shared\Services\StripeService;
 use App\Enums\BillingInterval;
-use App\Exceptions\SubscriptionException;
 use App\Models\Plan;
 use App\Models\PlanPrice;
 use Illuminate\Support\Facades\DB;
@@ -76,16 +75,12 @@ class ProductService
     }
 
     /**
-     * Deactivate the product and its prices in Stripe, then delete the local plan.
+     * Deactivate the product and its prices in Stripe. Locally, a plan nobody
+     * has subscribed to is deleted; a plan with subscriptions is kept but marked
+     * inactive, so existing subscribers keep their plan and nobody new can join.
      */
     public function archivePlan(Plan $plan): bool
     {
-        // Checked before touching Stripe: the foreign keys would block the local
-        // delete anyway, and Stripe would already have been changed by then.
-        if ($plan->subscriptions()->exists()) {
-            throw SubscriptionException::planHasSubscriptions();
-        }
-
         if ($plan->stripe_product_id) {
             $this->stripeService->archiveProduct($plan->stripe_product_id);
         }
@@ -96,9 +91,13 @@ class ProductService
             }
         }
 
-        $plan->delete();
+        if ($plan->subscriptions()->exists()) {
+            $plan->update(['is_active' => false]);
+        } else {
+            $plan->delete();
+        }
 
-        Log::info('Plan archived', ['plan_id' => $plan->id]);
+        Log::info('Plan archived', ['plan_id' => $plan->id, 'deleted' => !$plan->exists]);
 
         return true;
     }
@@ -120,6 +119,8 @@ class ProductService
                 'name' => $product->name,
                 'description' => $product->description,
                 'stripe_product_id' => $product->id,
+                // Only active Stripe products are listed, so a plan reactivated in Stripe becomes active here too.
+                'is_active' => true,
             ]);
 
             // Existing plans keep their slug. A new plan gets a free one, so a Stripe
@@ -199,7 +200,7 @@ class ProductService
     {
         $synced = ['products' => 0, 'prices' => 0];
 
-        foreach (Plan::with('prices')->get() as $plan) {
+        foreach (Plan::active()->with('prices')->get() as $plan) {
             $created = $this->pushToStripe($plan);
             $synced['products'] += $created['products'];
             $synced['prices'] += $created['prices'];

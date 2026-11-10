@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use App\Enums\BillingInterval;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 
@@ -13,7 +14,24 @@ class Plan extends Model
         'slug',
         'description',
         'stripe_product_id',
+        'is_active',
     ];
+
+    protected $attributes = [
+        'is_active' => true,
+    ];
+
+    protected function casts(): array
+    {
+        return [
+            'is_active' => 'boolean',
+        ];
+    }
+
+    public function scopeActive(Builder $query): Builder
+    {
+        return $query->where('is_active', true);
+    }
 
     public function prices(): HasMany
     {

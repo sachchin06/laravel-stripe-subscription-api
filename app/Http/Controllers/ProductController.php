@@ -43,7 +43,7 @@ class ProductController extends Controller
      */
     public function index(): JsonResponse
     {
-        $plans = $this->planService->getAllPlansWithPrices();
+        $plans = $this->planService->getAllPlansWithPrices(includeInactive: true);
 
         return response()->json([
             'data' => PlanResource::collection($plans),
