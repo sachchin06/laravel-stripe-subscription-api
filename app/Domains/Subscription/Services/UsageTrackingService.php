@@ -51,15 +51,24 @@ class UsageTrackingService
         return ($currentUsage + $requestedAmount) <= $limit;
     }
 
+    /**
+     * The user's monthly limit for a feature; null means unlimited.
+     *
+     * In config/features.php a null limit deliberately means "unlimited", so a
+     * missing entry must not be read as null. A plan (or a plan's feature) that
+     * is not configured, e.g. one created through the products API, falls back
+     * to the free-tier limit.
+     */
     public function getUserLimit(User $user, string $feature): ?int
     {
-        $subscription = $user->activeSubscription();
-        
-        if (!$subscription) {
-            return config("features.limits.free.{$feature}");
+        $freeLimit = config("features.limits.free.{$feature}");
+        $planLimits = config('features.limits.plans.'.$user->activeSubscription()?->plan->slug);
+
+        if (!is_array($planLimits) || !array_key_exists($feature, $planLimits)) {
+            return $freeLimit;
         }
 
-        return config("features.limits.plans.{$subscription->plan->slug}.{$feature}");
+        return $planLimits[$feature];
     }
 
     public function getUsageSummary(User $user): array
