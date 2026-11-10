@@ -13,7 +13,6 @@ use App\Events\SubscriptionCanceled;
 use App\Exceptions\SubscriptionException;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\Cache;
-use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 
 /**
@@ -171,21 +170,19 @@ class SubscriptionManager
             throw SubscriptionException::notActive();
         }
 
-        return DB::transaction(function () use ($subscription) {
-            // Cancel in Stripe
-            $this->stripeService->updateSubscription($subscription->stripe_subscription_id, [
-                'cancel_at_period_end' => true
-            ]);
+        // Stripe first, then a single local write. No transaction is needed, and a
+        // failure in Stripe leaves the local record unchanged.
+        $this->stripeService->updateSubscription($subscription->stripe_subscription_id, [
+            'cancel_at_period_end' => true,
+        ]);
 
-            // Update local record
-            $subscription->update([
-                'ends_at' => now()->addMonth() // This will be updated by webhook
-            ]);
+        $subscription->update([
+            'ends_at' => now()->addMonth(), // Corrected by the customer.subscription.updated webhook
+        ]);
 
-            event(new SubscriptionCanceled($subscription));
-            
-            return $subscription;
-        });
+        event(new SubscriptionCanceled($subscription));
+
+        return $subscription;
     }
 
     /**
@@ -197,20 +194,16 @@ class SubscriptionManager
             throw SubscriptionException::notActive();
         }
 
-        return DB::transaction(function () use ($subscription) {
-            // Cancel in Stripe
-            $this->stripeService->cancelSubscription($subscription->stripe_subscription_id);
+        $this->stripeService->cancelSubscription($subscription->stripe_subscription_id);
 
-            // Update local record
-            $subscription->update([
-                'stripe_status' => 'canceled',
-                'ends_at' => now()
-            ]);
+        $subscription->update([
+            'stripe_status' => 'canceled',
+            'ends_at' => now(),
+        ]);
 
-            event(new SubscriptionCanceled($subscription));
-            
-            return $subscription;
-        });
+        event(new SubscriptionCanceled($subscription));
+
+        return $subscription;
     }
 
     /**

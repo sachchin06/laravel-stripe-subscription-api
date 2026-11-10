@@ -2,6 +2,7 @@
 
 namespace App\Domains\Shared\Services;
 
+use Illuminate\Support\Str;
 use Stripe\StripeClient;
 
 /**
@@ -19,7 +20,20 @@ class StripeService
         $this->stripe = new StripeClient([
             'api_key' => config('stripe.secret'),
             'stripe_version' => config('stripe.api_version'),
+            // Safe because every create call below sends an idempotency key.
+            'max_network_retries' => 2,
         ]);
+    }
+
+    /**
+     * Stripe stores the result of a request under its idempotency key for 24 hours,
+     * so repeating a create call with the same key returns the original object
+     * instead of creating a duplicate. Callers pass a key derived from local data
+     * when a natural one exists; otherwise a random key still protects network retries.
+     */
+    private function idempotencyOptions(?string $key): array
+    {
+        return ['idempotency_key' => $key ?? (string) Str::uuid()];
     }
 
     /**
@@ -35,9 +49,9 @@ class StripeService
     /**
      * Create a product in Stripe
      */
-    public function createProduct(array $params): \Stripe\Product
+    public function createProduct(array $params, ?string $idempotencyKey = null): \Stripe\Product
     {
-        return $this->stripe->products->create($params);
+        return $this->stripe->products->create($params, $this->idempotencyOptions($idempotencyKey));
     }
 
     /**
@@ -77,9 +91,9 @@ class StripeService
     /**
      * Create a price in Stripe
      */
-    public function createPrice(array $params): \Stripe\Price
+    public function createPrice(array $params, ?string $idempotencyKey = null): \Stripe\Price
     {
-        return $this->stripe->prices->create($params);
+        return $this->stripe->prices->create($params, $this->idempotencyOptions($idempotencyKey));
     }
 
     /**
@@ -127,9 +141,9 @@ class StripeService
     /**
      * Create a customer
      */
-    public function createCustomer(array $params): \Stripe\Customer
+    public function createCustomer(array $params, ?string $idempotencyKey = null): \Stripe\Customer
     {
-        return $this->stripe->customers->create($params);
+        return $this->stripe->customers->create($params, $this->idempotencyOptions($idempotencyKey));
     }
 
     /**
@@ -161,9 +175,9 @@ class StripeService
     /**
      * Create a checkout session
      */
-    public function createCheckoutSession(array $params): \Stripe\Checkout\Session
+    public function createCheckoutSession(array $params, ?string $idempotencyKey = null): \Stripe\Checkout\Session
     {
-        return $this->stripe->checkout->sessions->create($params);
+        return $this->stripe->checkout->sessions->create($params, $this->idempotencyOptions($idempotencyKey));
     }
 
     /**
@@ -179,9 +193,9 @@ class StripeService
     /**
      * Create a subscription
      */
-    public function createSubscription(array $params): \Stripe\Subscription
+    public function createSubscription(array $params, ?string $idempotencyKey = null): \Stripe\Subscription
     {
-        return $this->stripe->subscriptions->create($params);
+        return $this->stripe->subscriptions->create($params, $this->idempotencyOptions($idempotencyKey));
     }
 
     /**

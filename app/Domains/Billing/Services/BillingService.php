@@ -67,25 +67,38 @@ class BillingService
      */
     public function getOrCreateCustomer(User $user): \Stripe\Customer
     {
-        // Check if user already has a Stripe customer ID
-        if ($user->stripe_customer_id) {
+        $previousCustomerId = $user->stripe_customer_id;
+
+        if ($previousCustomerId) {
             try {
-                return $this->stripeService->retrieveCustomer($user->stripe_customer_id);
-            } catch (\Exception $e) {
-                // Customer not found in Stripe, create new one
+                $customer = $this->stripeService->retrieveCustomer($previousCustomerId);
+
+                if (!$customer->isDeleted()) {
+                    return $customer;
+                }
+            } catch (\Stripe\Exception\InvalidRequestException $e) {
+                // The stored customer no longer exists in Stripe; create a new one below.
             }
         }
 
-        // Create new customer
+        // The key is the same for concurrent checkout requests from this user, so
+        // Stripe returns one customer to all of them instead of creating several.
+        // Including the previous customer ID allows a replacement to be created.
+        $idempotencyKey = sprintf(
+            'customer-%d-%d-%s',
+            $user->id,
+            $user->created_at->getTimestamp(),
+            $previousCustomerId ?? 'new'
+        );
+
         $customer = $this->stripeService->createCustomer([
             'email' => $user->email,
             'name' => $user->name,
             'metadata' => [
-                'user_id' => $user->id
-            ]
-        ]);
+                'user_id' => $user->id,
+            ],
+        ], $idempotencyKey);
 
-        // Update user with Stripe customer ID
         $user->update(['stripe_customer_id' => $customer->id]);
 
         return $customer;
