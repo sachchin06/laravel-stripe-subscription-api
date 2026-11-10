@@ -14,7 +14,6 @@ use App\Http\Resources\SubscriptionResource;
 use App\Models\PlanPrice;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Log;
 
 /**
  * Controller for subscription management endpoints
@@ -103,27 +102,14 @@ class SubscriptionController extends Controller
      */
     public function createCheckoutSession(CreateCheckoutRequest $request): JsonResponse
     {
-        try {
-            $checkoutUrl = $this->createCheckout->execute(
-                user: $request->user(),
-                stripePriceId: $request->validated('price_id')
-            );
+        $checkoutUrl = $this->createCheckout->execute(
+            user: $request->user(),
+            stripePriceId: $request->validated('price_id')
+        );
 
-            return response()->json([
-                'checkout_url' => $checkoutUrl,
-            ]);
-        } catch (SubscriptionException $e) {
-            throw $e;
-        } catch (\Exception $e) {
-            Log::error('Error creating Stripe Checkout Session', [
-                'error' => $e->getMessage(),
-                'user_id' => $request->user()->id,
-            ]);
-
-            return response()->json([
-                'message' => 'Failed to create checkout session',
-            ], 500);
-        }
+        return response()->json([
+            'checkout_url' => $checkoutUrl,
+        ]);
     }
 
     /**
@@ -200,24 +186,11 @@ class SubscriptionController extends Controller
             throw SubscriptionException::notFound();
         }
 
-        try {
-            $this->cancelSubscription->execute($subscription);
+        $this->cancelSubscription->execute($subscription);
 
-            return response()->json([
-                'message' => 'Subscription will be cancelled at the end of the billing period',
-            ]);
-        } catch (SubscriptionException $e) {
-            throw $e;
-        } catch (\Exception $e) {
-            Log::error('Error cancelling subscription', [
-                'error' => $e->getMessage(),
-                'subscription_id' => $subscription->id,
-            ]);
-
-            return response()->json([
-                'message' => 'Failed to cancel subscription',
-            ], 500);
-        }
+        return response()->json([
+            'message' => 'Subscription will be cancelled at the end of the billing period',
+        ]);
     }
 
     /**
@@ -252,28 +225,14 @@ class SubscriptionController extends Controller
             ], 400);
         }
 
-        try {
-            // Resume in Stripe
-            $this->stripeService->resumeSubscription($subscription->stripe_subscription_id);
+        $this->stripeService->resumeSubscription($subscription->stripe_subscription_id);
 
-            // Update local
-            $subscription->update(['ends_at' => null]);
+        $subscription->update(['ends_at' => null]);
 
-            return response()->json([
-                'message' => 'Subscription resumed successfully',
-                'data' => new SubscriptionResource($subscription->fresh(['plan', 'price'])),
-            ]);
-
-        } catch (\Exception $e) {
-            Log::error('Error resuming subscription', [
-                'error' => $e->getMessage(),
-                'subscription_id' => $subscription->id,
-            ]);
-
-            return response()->json([
-                'message' => 'Failed to resume subscription',
-            ], 500);
-        }
+        return response()->json([
+            'message' => 'Subscription resumed successfully',
+            'data' => new SubscriptionResource($subscription->fresh(['plan', 'price'])),
+        ]);
     }
 
     /**
@@ -322,34 +281,20 @@ class SubscriptionController extends Controller
             ], 422);
         }
 
-        try {
-            // Change plan in Stripe
-            $this->stripeService->changeSubscriptionPrice(
-                $subscription->stripe_subscription_id,
-                $validated['price_id']
-            );
+        $this->stripeService->changeSubscriptionPrice(
+            $subscription->stripe_subscription_id,
+            $validated['price_id']
+        );
 
-            // Update local subscription
-            $subscription->update([
-                'plan_id' => $newPrice->plan_id,
-                'plan_price_id' => $newPrice->id,
-            ]);
+        $subscription->update([
+            'plan_id' => $newPrice->plan_id,
+            'plan_price_id' => $newPrice->id,
+        ]);
 
-            return response()->json([
-                'message' => 'Plan changed successfully',
-                'data' => new SubscriptionResource($subscription->fresh(['plan', 'price'])),
-            ]);
-
-        } catch (\Exception $e) {
-            Log::error('Error changing plan', [
-                'error' => $e->getMessage(),
-                'subscription_id' => $subscription->id,
-            ]);
-
-            return response()->json([
-                'message' => 'Failed to change plan: ' . $e->getMessage(),
-            ], 500);
-        }
+        return response()->json([
+            'message' => 'Plan changed successfully',
+            'data' => new SubscriptionResource($subscription->fresh(['plan', 'price'])),
+        ]);
     }
 
     /**
@@ -388,45 +333,35 @@ class SubscriptionController extends Controller
             ]);
         }
 
-        try {
-            $stripeSubscription = $this->stripeService->retrieveSubscription(
-                $subscription->stripe_subscription_id
-            );
+        $stripeSubscription = $this->stripeService->retrieveSubscription(
+            $subscription->stripe_subscription_id
+        );
+        $item = $stripeSubscription->items->data[0];
+        $paymentMethod = $stripeSubscription->default_payment_method;
 
-            return response()->json([
-                'data' => [
-                    'id' => $stripeSubscription->id,
-                    'status' => $stripeSubscription->status,
-                    'current_period_start' => $stripeSubscription->items->data[0]->current_period_start,
-                    'current_period_end' => $stripeSubscription->items->data[0]->current_period_end,
-                    'cancel_at_period_end' => $stripeSubscription->cancel_at_period_end,
-                    'canceled_at' => $stripeSubscription->canceled_at,
-                    'trial_end' => $stripeSubscription->trial_end,
-                    'plan' => [
-                        'id' => $stripeSubscription->items->data[0]->price->id,
-                        'amount' => $stripeSubscription->items->data[0]->price->unit_amount,
-                        'currency' => $stripeSubscription->items->data[0]->price->currency,
-                        'interval' => $stripeSubscription->items->data[0]->price->recurring->interval,
-                    ],
-                    'default_payment_method' => $stripeSubscription->default_payment_method ? [
-                        'id' => $stripeSubscription->default_payment_method->id,
-                        'brand' => $stripeSubscription->default_payment_method->card->brand ?? null,
-                        'last4' => $stripeSubscription->default_payment_method->card->last4 ?? null,
-                        'exp_month' => $stripeSubscription->default_payment_method->card->exp_month ?? null,
-                        'exp_year' => $stripeSubscription->default_payment_method->card->exp_year ?? null,
-                    ] : null,
+        return response()->json([
+            'data' => [
+                'id' => $stripeSubscription->id,
+                'status' => $stripeSubscription->status,
+                'current_period_start' => $item->current_period_start,
+                'current_period_end' => $item->current_period_end,
+                'cancel_at_period_end' => $stripeSubscription->cancel_at_period_end,
+                'canceled_at' => $stripeSubscription->canceled_at,
+                'trial_end' => $stripeSubscription->trial_end,
+                'plan' => [
+                    'id' => $item->price->id,
+                    'amount' => $item->price->unit_amount,
+                    'currency' => $item->price->currency,
+                    'interval' => $item->price->recurring->interval,
                 ],
-            ]);
-
-        } catch (\Exception $e) {
-            Log::error('Error fetching subscription details', [
-                'error' => $e->getMessage(),
-                'subscription_id' => $subscription->id,
-            ]);
-
-            return response()->json([
-                'message' => 'Failed to fetch subscription details',
-            ], 500);
-        }
+                'default_payment_method' => $paymentMethod ? [
+                    'id' => $paymentMethod->id,
+                    'brand' => $paymentMethod->card->brand ?? null,
+                    'last4' => $paymentMethod->card->last4 ?? null,
+                    'exp_month' => $paymentMethod->card->exp_month ?? null,
+                    'exp_year' => $paymentMethod->card->exp_year ?? null,
+                ] : null,
+            ],
+        ]);
     }
 }

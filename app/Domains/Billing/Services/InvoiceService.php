@@ -23,35 +23,21 @@ class InvoiceService
             return [];
         }
 
-        try {
-            $invoices = $this->stripeService->client()->invoices->all([
-                'customer' => $user->stripe_customer_id,
-                'limit' => $limit,
-            ]);
+        $invoices = $this->stripeService->listInvoices($user->stripe_customer_id, $limit);
 
-            return array_map(function ($invoice) {
-                return [
-                    'id' => $invoice->id,
-                    'number' => $invoice->number,
-                    'amount_paid' => $invoice->amount_paid,
-                    'amount_due' => $invoice->amount_due,
-                    'currency' => strtoupper($invoice->currency),
-                    'status' => $invoice->status,
-                    'created' => $invoice->created,
-                    'due_date' => $invoice->due_date,
-                    'hosted_invoice_url' => $invoice->hosted_invoice_url,
-                    'invoice_pdf' => $invoice->invoice_pdf,
-                    'description' => $invoice->lines->data[0]->description ?? null,
-                ];
-            }, $invoices->data);
-
-        } catch (\Exception $e) {
-            \Log::error('Failed to fetch invoice history', [
-                'user_id' => $user->id,
-                'error' => $e->getMessage(),
-            ]);
-            return [];
-        }
+        return array_map(fn ($invoice) => [
+            'id' => $invoice->id,
+            'number' => $invoice->number,
+            'amount_paid' => $invoice->amount_paid,
+            'amount_due' => $invoice->amount_due,
+            'currency' => strtoupper($invoice->currency),
+            'status' => $invoice->status,
+            'created' => $invoice->created,
+            'due_date' => $invoice->due_date,
+            'hosted_invoice_url' => $invoice->hosted_invoice_url,
+            'invoice_pdf' => $invoice->invoice_pdf,
+            'description' => $invoice->lines->data[0]->description ?? null,
+        ], $invoices->data);
     }
 
     /**
@@ -63,21 +49,9 @@ class InvoiceService
             return null;
         }
 
-        try {
-            $session = $this->stripeService->client()->billingPortal->sessions->create([
-                'customer' => $user->stripe_customer_id,
-                'return_url' => $returnUrl,
-            ]);
-
-            return $session->url;
-
-        } catch (\Exception $e) {
-            \Log::error('Failed to create billing portal session', [
-                'user_id' => $user->id,
-                'error' => $e->getMessage(),
-            ]);
-            return null;
-        }
+        return $this->stripeService
+            ->createBillingPortalSession($user->stripe_customer_id, $returnUrl)
+            ->url;
     }
 
     /**

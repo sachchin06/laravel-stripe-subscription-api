@@ -8,7 +8,6 @@ use App\Http\Resources\PlanResource;
 use App\Models\Plan;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Log;
 
 /**
  * Controller for product/plan management (admin operations)
@@ -82,7 +81,7 @@ class ProductController extends Controller
      *         )
      *     ),
      *     @OA\Response(response=422, description="Validation error"),
-     *     @OA\Response(response=500, description="Stripe API error")
+     *     @OA\Response(response=502, description="Payment provider error")
      * )
      */
     public function store(Request $request): JsonResponse
@@ -97,21 +96,12 @@ class ProductController extends Controller
             'prices.*.currency' => 'nullable|string|size:3',
         ]);
 
-        try {
-            $plan = $this->productService->createPlanWithPrices($validated);
+        $plan = $this->productService->createPlanWithPrices($validated);
 
-            return response()->json([
-                'data' => new PlanResource($plan),
-                'message' => 'Product created successfully',
-            ], 201);
-
-        } catch (\Exception $e) {
-            Log::error('Failed to create product', ['error' => $e->getMessage()]);
-
-            return response()->json([
-                'message' => 'Failed to create product: ' . $e->getMessage(),
-            ], 500);
-        }
+        return response()->json([
+            'data' => new PlanResource($plan),
+            'message' => 'Product created successfully',
+        ], 201);
     }
 
     /**
@@ -169,7 +159,7 @@ class ProductController extends Controller
      *         )
      *     ),
      *     @OA\Response(response=404, description="Product not found"),
-     *     @OA\Response(response=500, description="Stripe API error")
+     *     @OA\Response(response=502, description="Payment provider error")
      * )
      */
     public function update(Request $request, Plan $product): JsonResponse
@@ -179,21 +169,12 @@ class ProductController extends Controller
             'description' => 'nullable|string',
         ]);
 
-        try {
-            $plan = $this->productService->updatePlan($product, $validated);
+        $plan = $this->productService->updatePlan($product, $validated);
 
-            return response()->json([
-                'data' => new PlanResource($plan->load('prices')),
-                'message' => 'Product updated successfully',
-            ]);
-
-        } catch (\Exception $e) {
-            Log::error('Failed to update product', ['error' => $e->getMessage()]);
-
-            return response()->json([
-                'message' => 'Failed to update product: ' . $e->getMessage(),
-            ], 500);
-        }
+        return response()->json([
+            'data' => new PlanResource($plan->load('prices')),
+            'message' => 'Product updated successfully',
+        ]);
     }
 
     /**
@@ -214,25 +195,16 @@ class ProductController extends Controller
      *         @OA\JsonContent(@OA\Property(property="message", type="string"))
      *     ),
      *     @OA\Response(response=404, description="Product not found"),
-     *     @OA\Response(response=500, description="Stripe API error")
+     *     @OA\Response(response=502, description="Payment provider error")
      * )
      */
     public function destroy(Plan $product): JsonResponse
     {
-        try {
-            $this->productService->archivePlan($product);
+        $this->productService->archivePlan($product);
 
-            return response()->json([
-                'message' => 'Product archived successfully',
-            ]);
-
-        } catch (\Exception $e) {
-            Log::error('Failed to archive product', ['error' => $e->getMessage()]);
-
-            return response()->json([
-                'message' => 'Failed to archive product: ' . $e->getMessage(),
-            ], 500);
-        }
+        return response()->json([
+            'message' => 'Product archived successfully',
+        ]);
     }
 
     /**
@@ -265,7 +237,7 @@ class ProductController extends Controller
      *         )
      *     ),
      *     @OA\Response(response=404, description="Product not found"),
-     *     @OA\Response(response=500, description="Stripe API error")
+     *     @OA\Response(response=502, description="Payment provider error")
      * )
      */
     public function addPrice(Request $request, Plan $product): JsonResponse
@@ -276,21 +248,12 @@ class ProductController extends Controller
             'currency' => 'nullable|string|size:3',
         ]);
 
-        try {
-            $price = $this->productService->createPriceForPlan($product, $validated);
+        $price = $this->productService->createPriceForPlan($product, $validated);
 
-            return response()->json([
-                'data' => $price,
-                'message' => 'Price added successfully',
-            ], 201);
-
-        } catch (\Exception $e) {
-            Log::error('Failed to add price', ['error' => $e->getMessage()]);
-
-            return response()->json([
-                'message' => 'Failed to add price: ' . $e->getMessage(),
-            ], 500);
-        }
+        return response()->json([
+            'data' => $price,
+            'message' => 'Price added successfully',
+        ], 201);
     }
 
     /**
@@ -316,31 +279,20 @@ class ProductController extends Controller
      *             )
      *         )
      *     ),
-     *     @OA\Response(response=500, description="Sync failed")
+     *     @OA\Response(response=502, description="Payment provider error")
      * )
      */
     public function sync(Request $request): JsonResponse
     {
         $direction = $request->input('direction', 'from');
 
-        try {
-            if ($direction === 'from') {
-                $result = $this->productService->syncFromStripe();
-            } else {
-                $result = $this->productService->syncToStripe();
-            }
+        $result = $direction === 'from'
+            ? $this->productService->syncFromStripe()
+            : $this->productService->syncToStripe();
 
-            return response()->json([
-                'message' => 'Sync completed successfully',
-                'synced' => $result,
-            ]);
-
-        } catch (\Exception $e) {
-            Log::error('Sync failed', ['error' => $e->getMessage()]);
-
-            return response()->json([
-                'message' => 'Sync failed: ' . $e->getMessage(),
-            ], 500);
-        }
+        return response()->json([
+            'message' => 'Sync completed successfully',
+            'synced' => $result,
+        ]);
     }
 }
