@@ -84,9 +84,32 @@ class SubscriptionManager
 
         if ($subscription->wasRecentlyCreated) {
             event(new SubscriptionCreated($subscription));
+            $this->warnIfUserHasOtherActiveSubscriptions($subscription);
         }
 
         return $subscription;
+    }
+
+    /**
+     * Checkout expires older sessions, so this should not happen. If it does
+     * (e.g. a session paid in the moment before it was expired), the customer
+     * really was charged twice, so the subscription is stored and left for a
+     * person to resolve rather than silently dropped.
+     */
+    private function warnIfUserHasOtherActiveSubscriptions(Subscription $subscription): void
+    {
+        $others = Subscription::active()
+            ->where('user_id', $subscription->user_id)
+            ->whereKeyNot($subscription->getKey())
+            ->pluck('stripe_subscription_id');
+
+        if ($others->isNotEmpty()) {
+            Log::warning('User has more than one active subscription', [
+                'user_id' => $subscription->user_id,
+                'new_stripe_subscription_id' => $subscription->stripe_subscription_id,
+                'other_stripe_subscription_ids' => $others->all(),
+            ]);
+        }
     }
 
     /**

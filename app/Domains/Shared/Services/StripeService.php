@@ -143,6 +143,24 @@ class StripeService
         return $this->stripe->checkout->sessions->retrieve($sessionId);
     }
 
+    /**
+     * Checkout sessions for this customer that can still be paid. Use
+     * autoPagingIterator() on the result to read every page.
+     */
+    public function listOpenCheckoutSessions(string $customerId): \Stripe\Collection
+    {
+        return $this->stripe->checkout->sessions->all([
+            'customer' => $customerId,
+            'status' => 'open',
+            'limit' => 100,
+        ]);
+    }
+
+    public function expireCheckoutSession(string $sessionId): \Stripe\Checkout\Session
+    {
+        return $this->stripe->checkout->sessions->expire($sessionId);
+    }
+
     // ==================== SUBSCRIPTIONS ====================
 
     public function createSubscription(array $params, ?string $idempotencyKey = null): \Stripe\Subscription

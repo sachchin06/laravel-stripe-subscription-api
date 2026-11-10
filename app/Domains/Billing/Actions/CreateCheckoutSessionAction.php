@@ -2,18 +2,15 @@
 
 namespace App\Domains\Billing\Actions;
 
-use App\Domains\Billing\Services\BillingService;
 use App\Domains\Billing\DTOs\CheckoutSessionData;
+use App\Domains\Billing\Services\BillingService;
 use App\Domains\Subscription\Services\PlanService;
-use App\Models\User;
-use App\Models\PlanPrice;
 use App\Exceptions\SubscriptionException;
+use App\Models\User;
 
 /**
- * Action for creating Stripe checkout sessions
- * 
- * This action orchestrates the checkout session creation process,
- * including validation and URL generation.
+ * Validates that the user may subscribe, then creates a Stripe Checkout
+ * session and returns its URL.
  */
 class CreateCheckoutSessionAction
 {
@@ -24,33 +21,30 @@ class CreateCheckoutSessionAction
 
     public function execute(User $user, string $stripePriceId): string
     {
-        // Find the plan price
         $planPrice = $this->planService->findPriceByStripeId($stripePriceId);
-        
+
         if (!$planPrice) {
             throw SubscriptionException::invalidPlanPrice();
         }
 
         $this->billingService->ensureNoActiveSubscription($user);
 
-        // Get or create Stripe customer
         $customer = $this->billingService->getOrCreateCustomer($user);
 
-        // Generate checkout URLs
+        // Only the newest checkout can be paid, so a user with two tabs open
+        // cannot end up paying for two subscriptions.
+        $this->billingService->expireOpenCheckoutSessions($customer->id);
+
         $urls = $this->billingService->generateCheckoutUrls();
 
-        // Create checkout session data
-        $checkoutData = new CheckoutSessionData(
+        $session = $this->billingService->createCheckoutSession(new CheckoutSessionData(
             userId: $user->id,
             stripePriceId: $stripePriceId,
             customerEmail: $user->email,
             successUrl: $urls['success_url'],
             cancelUrl: $urls['cancel_url'],
             stripeCustomerId: $customer->id
-        );
-
-        // Create the checkout session
-        $session = $this->billingService->createCheckoutSession($checkoutData);
+        ));
 
         return $session->url;
     }

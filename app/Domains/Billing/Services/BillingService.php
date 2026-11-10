@@ -109,6 +109,22 @@ class BillingService
         }
     }
 
+    /**
+     * Expire every unpaid Checkout session the customer still has open.
+     */
+    public function expireOpenCheckoutSessions(string $customerId): void
+    {
+        $sessions = $this->stripeService->listOpenCheckoutSessions($customerId);
+
+        foreach ($sessions->autoPagingIterator() as $session) {
+            try {
+                $this->stripeService->expireCheckoutSession($session->id);
+            } catch (\Stripe\Exception\InvalidRequestException) {
+                // It was completed or expired after we listed it; nothing to do.
+            }
+        }
+    }
+
     public function generateCheckoutUrls(): array
     {
         $baseUrl = config('app.frontend_url');
