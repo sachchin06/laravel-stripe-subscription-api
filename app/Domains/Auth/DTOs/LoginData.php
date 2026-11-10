@@ -14,9 +14,6 @@ readonly class LoginData extends BaseDTO
         public string $password
     ) {}
 
-    /**
-     * Convert to array for authentication
-     */
     public function toArray(): array
     {
         return [

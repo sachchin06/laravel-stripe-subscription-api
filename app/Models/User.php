@@ -47,9 +47,6 @@ class User extends Authenticatable
         return $this->hasMany(Subscription::class);
     }
 
-    /**
-     * Get user's active subscription
-     */
     public function activeSubscription(): ?Subscription
     {
         return $this->subscriptions()
@@ -58,9 +55,6 @@ class User extends Authenticatable
             ->first();
     }
 
-    /**
-     * Check if user has active subscription
-     */
     public function hasActiveSubscription(): bool
     {
         return $this->subscriptions()
@@ -68,9 +62,6 @@ class User extends Authenticatable
             ->exists();
     }
 
-    /**
-     * Check if user has active subscription for specific price
-     */
     public function hasActiveSubscriptionForPrice(string $stripePriceId): bool
     {
         return $this->subscriptions()
@@ -81,9 +72,6 @@ class User extends Authenticatable
             ->exists();
     }
 
-    /**
-     * Check if user is subscribed to specific plan
-     */
     public function isSubscribedTo(string $planSlug): bool
     {
         return $this->subscriptions()
@@ -94,25 +82,16 @@ class User extends Authenticatable
             ->exists();
     }
 
-    /**
-     * Check if user can access a feature
-     */
     public function canAccessFeature(string $featureSlug): bool
     {
         return app(FeatureGateService::class)->hasFeatureAccess($this, $featureSlug);
     }
 
-    /**
-     * Get user's current usage for an action type
-     */
     public function getCurrentUsage(string $actionType): int
     {
         return app(FeatureGateService::class)->getCurrentUsage($this, $actionType);
     }
 
-    /**
-     * Get user's usage limit for an action type
-     */
     public function getUsageLimit(string $actionType): ?int
     {
         return app(FeatureGateService::class)->getUsageLimit($this, $actionType);

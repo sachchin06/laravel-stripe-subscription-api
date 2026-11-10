@@ -6,7 +6,7 @@ use Illuminate\Support\Str;
 use Stripe\StripeClient;
 
 /**
- * Centralized Stripe service for all Stripe API interactions
+ * Centralised Stripe service for all Stripe API interactions
  * 
  * This service provides a single point of access to Stripe functionality
  * and ensures consistent configuration across the application.
@@ -36,9 +36,6 @@ class StripeService
         return ['idempotency_key' => $key ?? (string) Str::uuid()];
     }
 
-    /**
-     * Get the Stripe client instance
-     */
     public function client(): StripeClient
     {
         return $this->stripe;
@@ -46,33 +43,21 @@ class StripeService
 
     // ==================== PRODUCTS ====================
 
-    /**
-     * Create a product in Stripe
-     */
     public function createProduct(array $params, ?string $idempotencyKey = null): \Stripe\Product
     {
         return $this->stripe->products->create($params, $this->idempotencyOptions($idempotencyKey));
     }
 
-    /**
-     * Retrieve a product from Stripe
-     */
     public function retrieveProduct(string $productId): \Stripe\Product
     {
         return $this->stripe->products->retrieve($productId);
     }
 
-    /**
-     * Update a product in Stripe
-     */
     public function updateProduct(string $productId, array $params): \Stripe\Product
     {
         return $this->stripe->products->update($productId, $params);
     }
 
-    /**
-     * List all products from Stripe
-     */
     public function listProducts(array $params = []): \Stripe\Collection
     {
         return $this->stripe->products->all($params);
@@ -88,17 +73,11 @@ class StripeService
 
     // ==================== PRICES ====================
 
-    /**
-     * Create a price in Stripe
-     */
     public function createPrice(array $params, ?string $idempotencyKey = null): \Stripe\Price
     {
         return $this->stripe->prices->create($params, $this->idempotencyOptions($idempotencyKey));
     }
 
-    /**
-     * Retrieve a price from Stripe
-     */
     public function retrievePrice(string $priceId): \Stripe\Price
     {
         return $this->stripe->prices->retrieve($priceId);
@@ -112,17 +91,11 @@ class StripeService
         return $this->stripe->prices->update($priceId, $params);
     }
 
-    /**
-     * List all prices from Stripe
-     */
     public function listPrices(array $params = []): \Stripe\Collection
     {
         return $this->stripe->prices->all($params);
     }
 
-    /**
-     * List prices for a specific product
-     */
     public function listPricesForProduct(string $productId): \Stripe\Collection
     {
         return $this->stripe->prices->all(['product' => $productId, 'active' => true]);
@@ -138,33 +111,21 @@ class StripeService
 
     // ==================== CUSTOMERS ====================
 
-    /**
-     * Create a customer
-     */
     public function createCustomer(array $params, ?string $idempotencyKey = null): \Stripe\Customer
     {
         return $this->stripe->customers->create($params, $this->idempotencyOptions($idempotencyKey));
     }
 
-    /**
-     * Retrieve a customer
-     */
     public function retrieveCustomer(string $customerId): \Stripe\Customer
     {
         return $this->stripe->customers->retrieve($customerId);
     }
 
-    /**
-     * Update a customer
-     */
     public function updateCustomer(string $customerId, array $params): \Stripe\Customer
     {
         return $this->stripe->customers->update($customerId, $params);
     }
 
-    /**
-     * Delete a customer
-     */
     public function deleteCustomer(string $customerId): \Stripe\Customer
     {
         return $this->stripe->customers->delete($customerId);
@@ -172,17 +133,11 @@ class StripeService
 
     // ==================== CHECKOUT ====================
 
-    /**
-     * Create a checkout session
-     */
     public function createCheckoutSession(array $params, ?string $idempotencyKey = null): \Stripe\Checkout\Session
     {
         return $this->stripe->checkout->sessions->create($params, $this->idempotencyOptions($idempotencyKey));
     }
 
-    /**
-     * Retrieve a checkout session
-     */
     public function retrieveCheckoutSession(string $sessionId): \Stripe\Checkout\Session
     {
         return $this->stripe->checkout->sessions->retrieve($sessionId);
@@ -190,17 +145,11 @@ class StripeService
 
     // ==================== SUBSCRIPTIONS ====================
 
-    /**
-     * Create a subscription
-     */
     public function createSubscription(array $params, ?string $idempotencyKey = null): \Stripe\Subscription
     {
         return $this->stripe->subscriptions->create($params, $this->idempotencyOptions($idempotencyKey));
     }
 
-    /**
-     * Retrieve a subscription
-     */
     public function retrieveSubscription(string $subscriptionId): \Stripe\Subscription
     {
         return $this->stripe->subscriptions->retrieve($subscriptionId, [
@@ -208,25 +157,16 @@ class StripeService
         ]);
     }
 
-    /**
-     * Update a subscription
-     */
     public function updateSubscription(string $subscriptionId, array $params): \Stripe\Subscription
     {
         return $this->stripe->subscriptions->update($subscriptionId, $params);
     }
 
-    /**
-     * Cancel a subscription immediately
-     */
     public function cancelSubscription(string $subscriptionId): \Stripe\Subscription
     {
         return $this->stripe->subscriptions->cancel($subscriptionId);
     }
 
-    /**
-     * Cancel a subscription at period end
-     */
     public function cancelSubscriptionAtPeriodEnd(string $subscriptionId): \Stripe\Subscription
     {
         return $this->stripe->subscriptions->update($subscriptionId, [
@@ -244,9 +184,6 @@ class StripeService
         ]);
     }
 
-    /**
-     * Change subscription plan/price
-     */
     public function changeSubscriptionPrice(string $subscriptionId, string $newPriceId): \Stripe\Subscription
     {
         $subscription = $this->retrieveSubscription($subscriptionId);
@@ -263,9 +200,6 @@ class StripeService
         ]);
     }
 
-    /**
-     * List subscriptions for a customer
-     */
     public function listSubscriptions(string $customerId): \Stripe\Collection
     {
         return $this->stripe->subscriptions->all(['customer' => $customerId]);
@@ -273,9 +207,6 @@ class StripeService
 
     // ==================== INVOICES ====================
 
-    /**
-     * List invoices for a customer
-     */
     public function listInvoices(string $customerId, int $limit = 10): \Stripe\Collection
     {
         return $this->stripe->invoices->all([
@@ -299,14 +230,11 @@ class StripeService
 
         try {
             return $this->stripe->invoices->createPreview($params);
-        } catch (\Stripe\Exception\InvalidRequestException $e) {
+        } catch (\Stripe\Exception\InvalidRequestException) {
             return null;
         }
     }
 
-    /**
-     * Retrieve a specific invoice
-     */
     public function retrieveInvoice(string $invoiceId): \Stripe\Invoice
     {
         return $this->stripe->invoices->retrieve($invoiceId);
@@ -314,9 +242,6 @@ class StripeService
 
     // ==================== BILLING PORTAL ====================
 
-    /**
-     * Create a billing portal session
-     */
     public function createBillingPortalSession(string $customerId, string $returnUrl): \Stripe\BillingPortal\Session
     {
         return $this->stripe->billingPortal->sessions->create([
@@ -327,9 +252,6 @@ class StripeService
 
     // ==================== WEBHOOKS ====================
 
-    /**
-     * Construct webhook event from payload and signature
-     */
     public function constructWebhookEvent(string $payload, string $signature): \Stripe\Event
     {
         return \Stripe\Webhook::constructEvent(
@@ -341,9 +263,6 @@ class StripeService
 
     // ==================== PAYMENT METHODS ====================
 
-    /**
-     * List payment methods for a customer
-     */
     public function listPaymentMethods(string $customerId, string $type = 'card'): \Stripe\Collection
     {
         return $this->stripe->paymentMethods->all([
@@ -352,9 +271,6 @@ class StripeService
         ]);
     }
 
-    /**
-     * Detach a payment method from customer
-     */
     public function detachPaymentMethod(string $paymentMethodId): \Stripe\PaymentMethod
     {
         return $this->stripe->paymentMethods->detach($paymentMethodId);

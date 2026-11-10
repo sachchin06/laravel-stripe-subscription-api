@@ -19,9 +19,6 @@ class BillingService
         private readonly StripeService $stripeService
     ) {}
 
-    /**
-     * Create a Stripe checkout session for subscription
-     */
     public function createCheckoutSession(CheckoutSessionData $data): \Stripe\Checkout\Session
     {
         $params = [
@@ -62,9 +59,6 @@ class BillingService
         return $this->stripeService->createCheckoutSession($params);
     }
 
-    /**
-     * Create or retrieve Stripe customer for user
-     */
     public function getOrCreateCustomer(User $user): \Stripe\Customer
     {
         $previousCustomerId = $user->stripe_customer_id;
@@ -76,7 +70,7 @@ class BillingService
                 if (!$customer->isDeleted()) {
                     return $customer;
                 }
-            } catch (\Stripe\Exception\InvalidRequestException $e) {
+            } catch (\Stripe\Exception\InvalidRequestException) {
                 // The stored customer no longer exists in Stripe; create a new one below.
             }
         }
@@ -115,9 +109,6 @@ class BillingService
         }
     }
 
-    /**
-     * Generate success and cancel URLs for checkout
-     */
     public function generateCheckoutUrls(): array
     {
         $baseUrl = config('app.frontend_url');

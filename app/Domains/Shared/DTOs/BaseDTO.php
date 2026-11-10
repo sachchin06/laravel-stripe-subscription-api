@@ -12,9 +12,6 @@ abstract readonly class BaseDTO
      */
     abstract public function toArray(): array;
 
-    /**
-     * Convert to JSON
-     */
     public function toJson(): string
     {
         return json_encode($this->toArray());

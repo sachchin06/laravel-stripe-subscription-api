@@ -22,9 +22,6 @@ class CreateCheckoutSessionAction
         private readonly PlanService $planService
     ) {}
 
-    /**
-     * Create a checkout session for the given user and plan price
-     */
     public function execute(User $user, string $stripePriceId): string
     {
         // Find the plan price

@@ -12,9 +12,6 @@ use Illuminate\Support\Facades\Hash;
  */
 class RegisterUserAction
 {
-    /**
-     * Execute user registration
-     */
     public function execute(RegisterUserData $data): User
     {
         $user = User::create([

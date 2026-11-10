@@ -14,9 +14,6 @@ class InvoiceService
         private readonly StripeService $stripeService
     ) {}
 
-    /**
-     * Get user's invoice history from Stripe
-     */
     public function getInvoiceHistory(User $user, int $limit = 10): array
     {
         if (!$user->stripe_customer_id) {
@@ -40,9 +37,6 @@ class InvoiceService
         ], $invoices->data);
     }
 
-    /**
-     * Create billing portal session for customer self-service
-     */
     public function createBillingPortalSession(User $user, string $returnUrl): ?string
     {
         if (!$user->stripe_customer_id) {
@@ -54,9 +48,6 @@ class InvoiceService
             ->url;
     }
 
-    /**
-     * Get upcoming invoice for customer
-     */
     public function getUpcomingInvoice(User $user): ?array
     {
         if (!$user->stripe_customer_id) {

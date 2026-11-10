@@ -22,9 +22,6 @@ use Illuminate\Support\ServiceProvider;
  */
 class DomainServiceProvider extends ServiceProvider
 {
-    /**
-     * Register domain services
-     */
     public function register(): void
     {
         // Shared services
@@ -48,9 +45,6 @@ class DomainServiceProvider extends ServiceProvider
         $this->app->singleton(WebhookService::class);
     }
 
-    /**
-     * Bootstrap domain services
-     */
     public function boot(): void
     {
         //

@@ -35,9 +35,6 @@ readonly class SubscriptionData extends BaseDTO
         ];
     }
 
-    /**
-     * Create from Stripe subscription object
-     */
     public static function fromStripeSubscription(
         \Stripe\Subscription $subscription,
         int $userId,

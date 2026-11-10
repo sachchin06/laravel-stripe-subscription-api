@@ -29,9 +29,6 @@ class SubscriptionManager
         private readonly PlanService $planService
     ) {}
 
-    /**
-     * Create a new subscription from Stripe checkout session
-     */
     public function createFromCheckoutSession(array $sessionData): Subscription
     {
         $session = \Stripe\Checkout\Session::constructFrom($sessionData);
@@ -162,9 +159,6 @@ class SubscriptionManager
         return $timestamp ? Carbon::createFromTimestamp($timestamp) : null;
     }
 
-    /**
-     * Cancel subscription at period end
-     */
     public function cancelAtPeriodEnd(Subscription $subscription): Subscription
     {
         if (!$subscription->isActive()) {
@@ -187,9 +181,6 @@ class SubscriptionManager
         return $subscription;
     }
 
-    /**
-     * Cancel subscription immediately
-     */
     public function cancelImmediately(Subscription $subscription): Subscription
     {
         if (!$subscription->isActive()) {
@@ -208,9 +199,6 @@ class SubscriptionManager
         return $subscription;
     }
 
-    /**
-     * Check if user has active subscription
-     */
     public function hasActiveSubscription(User $user): bool
     {
         return $user->subscriptions()
@@ -218,9 +206,6 @@ class SubscriptionManager
             ->exists();
     }
 
-    /**
-     * Get user's active subscription
-     */
     public function getActiveSubscription(User $user): ?Subscription
     {
         return $user->subscriptions()

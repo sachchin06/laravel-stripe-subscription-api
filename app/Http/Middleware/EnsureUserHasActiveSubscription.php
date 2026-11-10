@@ -19,9 +19,6 @@ class EnsureUserHasActiveSubscription
         private readonly SubscriptionManager $subscriptionManager
     ) {}
 
-    /**
-     * Handle an incoming request
-     */
     public function handle(Request $request, Closure $next): Response
     {
         $user = $request->user();

@@ -112,9 +112,6 @@ class WebhookService
         };
     }
 
-    /**
-     * Get supported webhook event types
-     */
     public function getSupportedEventTypes(): array
     {
         return [

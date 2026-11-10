@@ -11,9 +11,6 @@ use Carbon\Carbon;
  */
 class UsageTrackingService
 {
-    /**
-     * Record usage for a user and feature
-     */
     public function recordUsage(User $user, string $feature, int $amount = 1, array $metadata = []): UsageRecord
     {
         return UsageRecord::create([
@@ -25,9 +22,6 @@ class UsageTrackingService
         ]);
     }
 
-    /**
-     * Get current month usage for a user and feature
-     */
     public function getCurrentMonthUsage(User $user, string $feature): int
     {
         return UsageRecord::where('user_id', $user->id)
@@ -36,9 +30,6 @@ class UsageTrackingService
             ->sum('amount');
     }
 
-    /**
-     * Get usage for a specific period
-     */
     public function getUsageInPeriod(User $user, string $feature, Carbon $start, Carbon $end): int
     {
         return UsageRecord::where('user_id', $user->id)
@@ -47,9 +38,6 @@ class UsageTrackingService
             ->sum('amount');
     }
 
-    /**
-     * Check if user can perform action based on usage limits
-     */
     public function canPerformAction(User $user, string $feature, int $requestedAmount = 1): bool
     {
         $currentUsage = $this->getCurrentMonthUsage($user, $feature);
@@ -63,9 +51,6 @@ class UsageTrackingService
         return ($currentUsage + $requestedAmount) <= $limit;
     }
 
-    /**
-     * Get user's limit for a feature based on their subscription
-     */
     public function getUserLimit(User $user, string $feature): ?int
     {
         $subscription = $user->activeSubscription();
@@ -77,9 +62,6 @@ class UsageTrackingService
         return config("features.limits.plans.{$subscription->plan->slug}.{$feature}");
     }
 
-    /**
-     * Get usage summary for a user
-     */
     public function getUsageSummary(User $user): array
     {
         $features = ['api_calls', 'storage_mb', 'team_members'];
@@ -100,9 +82,6 @@ class UsageTrackingService
         return $summary;
     }
 
-    /**
-     * Get usage history for a user and feature
-     */
     public function getUsageHistory(User $user, string $feature, int $days = 30): array
     {
         $records = UsageRecord::where('user_id', $user->id)
