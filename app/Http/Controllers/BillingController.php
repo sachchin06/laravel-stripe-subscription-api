@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Domains\Billing\Services\InvoiceService;
 use App\Domains\Subscription\Services\FeatureGateService;
+use App\Http\Requests\Billing\BillingPortalRequest;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
@@ -66,8 +67,14 @@ class BillingController extends Controller
      */
     public function invoices(Request $request): JsonResponse
     {
-        $limit = $request->integer('limit', 10);
-        $invoices = $this->invoiceService->getInvoiceHistory($request->user(), $limit);
+        $validated = $request->validate([
+            'limit' => ['nullable', 'integer', 'min:1', 'max:100'],
+        ]);
+
+        $invoices = $this->invoiceService->getInvoiceHistory(
+            $request->user(),
+            (int) ($validated['limit'] ?? 10)
+        );
 
         return response()->json([
             'data' => $invoices,
@@ -129,7 +136,7 @@ class BillingController extends Controller
      *                 type="string",
      *                 format="url",
      *                 example="https://yourapp.com/billing",
-     *                 description="URL to redirect to after billing portal session"
+     *                 description="Where the portal returns the user. Must be on the FRONTEND_URL or APP_URL host; defaults to FRONTEND_URL."
      *             )
      *         )
      *     ),
@@ -159,13 +166,11 @@ class BillingController extends Controller
      *     )
      * )
      */
-    public function billingPortal(Request $request): JsonResponse
+    public function billingPortal(BillingPortalRequest $request): JsonResponse
     {
-        $returnUrl = $request->input('return_url', config('app.frontend_url', config('app.url')));
-        
         $portalUrl = $this->invoiceService->createBillingPortalSession(
             $request->user(),
-            $returnUrl
+            $request->returnUrl()
         );
 
         if (!$portalUrl) {

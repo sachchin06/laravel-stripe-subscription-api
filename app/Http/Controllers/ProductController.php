@@ -284,7 +284,9 @@ class ProductController extends Controller
      */
     public function sync(Request $request): JsonResponse
     {
-        $direction = $request->input('direction', 'from');
+        $direction = $request->validate([
+            'direction' => ['nullable', 'in:from,to'],
+        ])['direction'] ?? 'from';
 
         $result = $direction === 'from'
             ? $this->productService->syncFromStripe()

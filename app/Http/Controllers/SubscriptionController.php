@@ -8,6 +8,7 @@ use App\Domains\Subscription\Services\PlanService;
 use App\Domains\Subscription\Services\SubscriptionManager;
 use App\Domains\Shared\Services\StripeService;
 use App\Exceptions\SubscriptionException;
+use App\Http\Requests\Subscription\ChangePlanRequest;
 use App\Http\Requests\Subscription\CreateCheckoutRequest;
 use App\Http\Resources\PlanResource;
 use App\Http\Resources\SubscriptionResource;
@@ -260,30 +261,19 @@ class SubscriptionController extends Controller
      *     @OA\Response(response=422, description="Invalid price ID")
      * )
      */
-    public function changePlan(Request $request): JsonResponse
+    public function changePlan(ChangePlanRequest $request): JsonResponse
     {
-        $validated = $request->validate([
-            'price_id' => 'required|string',
-        ]);
-
         $subscription = $this->subscriptionManager->getActiveSubscription($request->user());
 
         if (!$subscription) {
             throw SubscriptionException::notFound();
         }
 
-        // Find the new price
-        $newPrice = PlanPrice::where('stripe_price_id', $validated['price_id'])->first();
-
-        if (!$newPrice) {
-            return response()->json([
-                'message' => 'Invalid price ID',
-            ], 422);
-        }
+        $newPrice = PlanPrice::where('stripe_price_id', $request->validated('price_id'))->firstOrFail();
 
         $this->stripeService->changeSubscriptionPrice(
             $subscription->stripe_subscription_id,
-            $validated['price_id']
+            $newPrice->stripe_price_id
         );
 
         $subscription->update([
