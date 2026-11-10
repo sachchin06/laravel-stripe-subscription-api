@@ -47,7 +47,8 @@ return [
     |
     */
 
-    'expiration' => null,
+    // Seven days by default. Expired tokens are rejected and the user logs in again.
+    'expiration' => (int) env('SANCTUM_TOKEN_EXPIRATION', 60 * 24 * 7),
 
     /*
     |--------------------------------------------------------------------------
