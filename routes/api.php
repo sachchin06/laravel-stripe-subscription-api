@@ -53,8 +53,8 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::get('/usage', [BillingController::class, 'usage'])->name('billing.usage');
     });
 
-    // Products/Plans Management (Admin)
-    Route::prefix('products')->group(function () {
+    // Products/Plans management (admins only)
+    Route::prefix('products')->middleware('can:manage-products')->group(function () {
         Route::get('/', [ProductController::class, 'index'])->name('products.index');
         Route::post('/', [ProductController::class, 'store'])->name('products.store');
         Route::get('/{product}', [ProductController::class, 'show'])->name('products.show');
