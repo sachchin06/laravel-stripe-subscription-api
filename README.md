@@ -4,7 +4,7 @@ A REST API for SaaS subscription billing on Stripe, built with Laravel 12.
 
 [![CI](https://github.com/sachchin06/laravel-stripe-subscription-api/actions/workflows/ci.yml/badge.svg)](https://github.com/sachchin06/laravel-stripe-subscription-api/actions/workflows/ci.yml)
 [![Licence: MIT](https://img.shields.io/github/license/sachchin06/laravel-stripe-subscription-api)](LICENSE)
-![PHP 8.2+](https://img.shields.io/badge/PHP-8.2%2B-777BB4)
+![PHP 8.3+](https://img.shields.io/badge/PHP-8.3%2B-777BB4)
 
 ## Overview
 
@@ -70,7 +70,7 @@ The webhook endpoint handles `checkout.session.completed`, `customer.subscriptio
 
 | Area | Choice |
 |------|--------|
-| Language and framework | PHP 8.2+ (8.3+ for the test tools), Laravel 12 |
+| Language and framework | PHP 8.3+, Laravel 12 |
 | Authentication | Laravel Sanctum 4 |
 | Payments | Stripe PHP SDK 18, pinned to API version `2025-10-29.clover` |
 | Database | MySQL in development; in-memory SQLite in tests |
@@ -83,7 +83,7 @@ The webhook endpoint handles `checkout.session.completed`, `customer.subscriptio
 
 ### Requirements
 
-- PHP 8.2 or later (8.3 or later to run the tests), with `pdo_mysql`, and `pdo_sqlite` for the tests
+- PHP 8.3 or later, with `pdo_mysql`, and `pdo_sqlite` for the tests
 - Composer
 - MySQL
 - A Stripe account in test mode
