@@ -5,6 +5,7 @@ use App\Http\Controllers\SubscriptionController;
 use App\Http\Controllers\StripeWebhookController;
 use App\Http\Controllers\BillingController;
 use App\Http\Controllers\ProductController;
+use App\Http\Controllers\ReportController;
 use Illuminate\Support\Facades\Route;
 
 /*
@@ -52,6 +53,11 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::post('/portal', [BillingController::class, 'billingPortal'])->name('billing.portal');
         Route::get('/usage', [BillingController::class, 'usage'])->name('billing.usage');
     });
+
+    // Plan-gated feature: needs a plan with advanced_analytics, and each call counts towards api_calls
+    Route::get('/reports/usage', [ReportController::class, 'usage'])
+        ->middleware(['feature:advanced_analytics', 'usage:api_calls'])
+        ->name('reports.usage');
 
     // Products/Plans management (admins only)
     Route::prefix('products')->middleware('can:manage-products')->group(function () {
