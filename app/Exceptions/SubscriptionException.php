@@ -9,7 +9,10 @@ class SubscriptionException extends Exception
 {
     public static function alreadySubscribed(): self
     {
-        return new self('You already have an active subscription for this plan.', 400);
+        return new self(
+            'You already have an active subscription. To switch plans, use POST /api/subscriptions/change-plan.',
+            409
+        );
     }
 
     public static function notActive(): self
@@ -35,6 +38,11 @@ class SubscriptionException extends Exception
     public static function cannotCancel(string $reason = 'Subscription cannot be cancelled'): self
     {
         return new self($reason, 400);
+    }
+
+    public static function planNotAvailable(): self
+    {
+        return new self('This plan is no longer available.', 422);
     }
 
     public function render(): JsonResponse

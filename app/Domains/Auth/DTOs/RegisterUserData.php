@@ -15,9 +15,6 @@ readonly class RegisterUserData extends BaseDTO
         public string $password
     ) {}
 
-    /**
-     * Convert to array for Eloquent operations
-     */
     public function toArray(): array
     {
         return [

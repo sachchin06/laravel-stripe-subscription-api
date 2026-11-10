@@ -2,12 +2,16 @@
 
 namespace App\Models;
 
+use App\Enums\BillingInterval;
+use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class PlanPrice extends Model
 {
+    use HasFactory;
+
     protected $fillable = [
         'plan_id',
         'stripe_price_id',
@@ -19,7 +23,9 @@ class PlanPrice extends Model
     protected function casts(): array
     {
         return [
-            'price' => 'decimal:2',
+            // Smallest currency unit (e.g. cents), the same as Stripe's unit_amount.
+            'price' => 'integer',
+            'interval' => BillingInterval::class,
         ];
     }
 
@@ -35,16 +41,16 @@ class PlanPrice extends Model
 
     public function getFormattedPriceAttribute(): string
     {
-        return number_format($this->price, 2) . ' ' . strtoupper($this->currency);
+        return number_format($this->price / 100, 2).' '.strtoupper($this->currency);
     }
 
     public function isMonthly(): bool
     {
-        return $this->interval === 'month';
+        return $this->interval === BillingInterval::MONTH;
     }
 
     public function isYearly(): bool
     {
-        return $this->interval === 'year';
+        return $this->interval === BillingInterval::YEAR;
     }
 }

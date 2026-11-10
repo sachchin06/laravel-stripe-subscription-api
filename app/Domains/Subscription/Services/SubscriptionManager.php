@@ -3,19 +3,22 @@
 namespace App\Domains\Subscription\Services;
 
 use App\Domains\Shared\Services\StripeService;
-use App\Models\Subscription;
-use App\Models\User;
-use App\Models\PlanPrice;
 use App\Domains\Subscription\DTOs\SubscriptionData;
+use App\Enums\SubscriptionStatus;
+use App\Events\SubscriptionCanceled;
 use App\Events\SubscriptionCreated;
 use App\Events\SubscriptionUpdated;
-use App\Events\SubscriptionCanceled;
 use App\Exceptions\SubscriptionException;
-use Illuminate\Support\Facades\DB;
+use App\Models\PlanPrice;
+use App\Models\Subscription;
+use App\Models\User;
+use Carbon\Carbon;
+use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\Log;
 
 /**
  * High-level subscription management service
- * 
+ *
  * This service orchestrates subscription operations and ensures
  * consistency between local database and Stripe.
  */
@@ -26,180 +29,211 @@ class SubscriptionManager
         private readonly PlanService $planService
     ) {}
 
-    /**
-     * Create a new subscription from Stripe checkout session
-     */
     public function createFromCheckoutSession(array $sessionData): Subscription
     {
-        return DB::transaction(function () use ($sessionData) {
-            $session = \Stripe\Checkout\Session::constructFrom($sessionData);
-            
-            // Validate session has subscription
-            if (!$session->subscription) {
-                throw SubscriptionException::invalidCheckoutSession('No subscription found in checkout session');
-            }
+        $session = \Stripe\Checkout\Session::constructFrom($sessionData);
 
-            // Check if subscription already exists (idempotency)
-            $existingSubscription = Subscription::where('stripe_subscription_id', $session->subscription)->first();
-            if ($existingSubscription) {
-                return $existingSubscription;
-            }
+        if (! $session->subscription) {
+            throw SubscriptionException::invalidCheckoutSession('No subscription found in checkout session');
+        }
 
-            // Get subscription details from Stripe
-            $stripeSubscription = $this->stripeService->retrieveSubscription($session->subscription);
-            
-            // Find the plan price
-            $priceId = $stripeSubscription->items->data[0]->price->id;
-            $planPrice = PlanPrice::where('stripe_price_id', $priceId)->first();
-            
-            if (!$planPrice) {
-                throw SubscriptionException::invalidCheckoutSession("Price {$priceId} not found in database");
-            }
+        $userId = (int) $session->client_reference_id;
+        if (! $userId) {
+            throw SubscriptionException::invalidCheckoutSession('Missing client_reference_id');
+        }
 
-            // Get user ID from client_reference_id
-            $userId = (int) $session->client_reference_id;
-            if (!$userId) {
-                throw SubscriptionException::invalidCheckoutSession('Missing client_reference_id');
-            }
+        // Fast path for a repeated event: no need to call Stripe again.
+        $existingSubscription = Subscription::where('stripe_subscription_id', $session->subscription)->first();
+        if ($existingSubscription) {
+            return $existingSubscription;
+        }
 
-            // Update user's stripe_customer_id if not set
-            $user = User::find($userId);
-            if ($user && !$user->stripe_customer_id) {
-                $user->update(['stripe_customer_id' => $stripeSubscription->customer]);
-            }
-            
-            // Create subscription data
-            $subscriptionData = new SubscriptionData(
-                userId: $userId,
-                planId: $planPrice->plan_id,
-                planPriceId: $planPrice->id,
-                stripeSubscriptionId: $stripeSubscription->id,
-                stripeCustomerId: $stripeSubscription->customer,
-                stripeStatus: $stripeSubscription->status,
-                trialEndsAt: $stripeSubscription->trial_end ? 
-                    \Carbon\Carbon::createFromTimestamp($stripeSubscription->trial_end) : null,
-                endsAt: null
-            );
+        $stripeSubscription = $this->stripeService->retrieveSubscription($session->subscription);
 
-            // Create local subscription
-            $subscription = Subscription::create($subscriptionData->toArray());
-            
-            // Fire event
+        $priceId = $stripeSubscription->items->data[0]->price->id;
+        $planPrice = PlanPrice::where('stripe_price_id', $priceId)->first();
+
+        if (! $planPrice) {
+            throw SubscriptionException::invalidCheckoutSession("Price {$priceId} not found in database");
+        }
+
+        $user = User::find($userId);
+        if ($user && ! $user->stripe_customer_id) {
+            $user->update(['stripe_customer_id' => $stripeSubscription->customer]);
+        }
+
+        $subscriptionData = new SubscriptionData(
+            userId: $userId,
+            planId: $planPrice->plan_id,
+            planPriceId: $planPrice->id,
+            stripeSubscriptionId: $stripeSubscription->id,
+            stripeCustomerId: $stripeSubscription->customer,
+            stripeStatus: $stripeSubscription->status,
+            trialEndsAt: $stripeSubscription->trial_end ?
+                \Carbon\Carbon::createFromTimestamp($stripeSubscription->trial_end) : null,
+            endsAt: null
+        );
+
+        // Two workers can handle the same checkout at the same time. createOrFirst relies on
+        // the unique index on stripe_subscription_id: the second insert fails and the row
+        // written by the first worker is returned instead of a duplicate being created.
+        $subscription = Subscription::createOrFirst(
+            ['stripe_subscription_id' => $stripeSubscription->id],
+            $subscriptionData->toArray()
+        );
+
+        if ($subscription->wasRecentlyCreated) {
             event(new SubscriptionCreated($subscription));
-            
-            return $subscription;
-        });
+            $this->warnIfUserHasOtherActiveSubscriptions($subscription);
+        }
+
+        return $subscription;
     }
 
     /**
-     * Update subscription status from Stripe webhook
+     * Checkout expires older sessions, so this should not happen. If it does
+     * (e.g. a session paid in the moment before it was expired), the customer
+     * really was charged twice, so the subscription is stored and left for a
+     * person to resolve rather than silently dropped.
      */
-    public function updateFromStripeWebhook(array $stripeSubscriptionData): ?Subscription
+    private function warnIfUserHasOtherActiveSubscriptions(Subscription $subscription): void
     {
-        $stripeSubscription = \Stripe\Subscription::constructFrom($stripeSubscriptionData);
-        
-        $subscription = Subscription::where('stripe_subscription_id', $stripeSubscription->id)->first();
-        
-        if (!$subscription) {
+        $others = Subscription::active()
+            ->where('user_id', $subscription->user_id)
+            ->whereKeyNot($subscription->getKey())
+            ->pluck('stripe_subscription_id');
+
+        if ($others->isNotEmpty()) {
+            Log::warning('User has more than one active subscription', [
+                'user_id' => $subscription->user_id,
+                'new_stripe_subscription_id' => $subscription->stripe_subscription_id,
+                'other_stripe_subscription_ids' => $others->all(),
+            ]);
+        }
+    }
+
+    /**
+     * Overwrite the local subscription with its current state in Stripe.
+     *
+     * Webhook payloads can arrive late or out of order, so they are only used to
+     * learn which subscription changed. The state written here always comes from
+     * a fresh API call, which means an old event can never overwrite newer data.
+     * Returns null if the subscription is not stored locally yet; the
+     * checkout.session.completed handler creates it.
+     */
+    public function syncFromStripe(string $stripeSubscriptionId): ?Subscription
+    {
+        if (! Subscription::where('stripe_subscription_id', $stripeSubscriptionId)->exists()) {
             return null;
         }
 
-        return DB::transaction(function () use ($subscription, $stripeSubscription) {
-            $subscription->update([
-                'stripe_status' => $stripeSubscription->status,
-                'trial_ends_at' => $stripeSubscription->trial_end ? 
-                    \Carbon\Carbon::createFromTimestamp($stripeSubscription->trial_end) : null,
-                'ends_at' => $stripeSubscription->cancel_at ? 
-                    \Carbon\Carbon::createFromTimestamp($stripeSubscription->cancel_at) : null,
-            ]);
+        // Serialise syncs of the same subscription so two jobs cannot interleave
+        // their read from Stripe and their write to the database.
+        return Cache::lock("stripe-subscription-sync:{$stripeSubscriptionId}", 30)
+            ->block(10, function () use ($stripeSubscriptionId) {
+                $stripeSubscription = $this->stripeService->retrieveSubscription($stripeSubscriptionId);
+                $subscription = Subscription::where('stripe_subscription_id', $stripeSubscriptionId)->firstOrFail();
 
-            event(new SubscriptionUpdated($subscription));
-            
-            return $subscription;
-        });
+                $attributes = [
+                    'stripe_status' => $stripeSubscription->status,
+                    'trial_ends_at' => $stripeSubscription->trial_end ?
+                        Carbon::createFromTimestamp($stripeSubscription->trial_end) : null,
+                    'ends_at' => $this->endsAt($stripeSubscription),
+                ];
+
+                // Plan changes made in the Stripe Billing Portal reach us this way.
+                $priceId = $stripeSubscription->items->data[0]->price->id;
+                $planPrice = PlanPrice::where('stripe_price_id', $priceId)->first();
+
+                if ($planPrice) {
+                    $attributes['plan_id'] = $planPrice->plan_id;
+                    $attributes['plan_price_id'] = $planPrice->id;
+                } else {
+                    Log::warning('Stripe price not found locally; plan left unchanged', [
+                        'stripe_subscription_id' => $stripeSubscriptionId,
+                        'stripe_price_id' => $priceId,
+                    ]);
+                }
+
+                $subscription->update($attributes);
+
+                event(new SubscriptionUpdated($subscription));
+
+                return $subscription;
+            });
     }
 
     /**
-     * Cancel subscription at period end
+     * When access ends: the end date for a cancelled subscription, or the
+     * scheduled cancellation date for one set to cancel at period end.
      */
+    private function endsAt(\Stripe\Subscription $stripeSubscription): ?Carbon
+    {
+        if ($stripeSubscription->status === SubscriptionStatus::CANCELED->value) {
+            $timestamp = $stripeSubscription->ended_at ?? $stripeSubscription->canceled_at;
+        } elseif ($stripeSubscription->cancel_at) {
+            $timestamp = $stripeSubscription->cancel_at;
+        } elseif ($stripeSubscription->cancel_at_period_end) {
+            $timestamp = $stripeSubscription->items->data[0]->current_period_end;
+        } else {
+            $timestamp = null;
+        }
+
+        return $timestamp ? Carbon::createFromTimestamp($timestamp) : null;
+    }
+
     public function cancelAtPeriodEnd(Subscription $subscription): Subscription
     {
-        if (!$subscription->isActive()) {
+        if (! $subscription->isActive()) {
             throw SubscriptionException::notActive();
         }
 
-        return DB::transaction(function () use ($subscription) {
-            // Cancel in Stripe
-            $this->stripeService->updateSubscription($subscription->stripe_subscription_id, [
-                'cancel_at_period_end' => true
-            ]);
+        // Stripe first, then a single local write. No transaction is needed, and a
+        // failure in Stripe leaves the local record unchanged.
+        $stripeSubscription = $this->stripeService->updateSubscription($subscription->stripe_subscription_id, [
+            'cancel_at_period_end' => true,
+        ]);
 
-            // Update local record
-            $subscription->update([
-                'ends_at' => now()->addMonth() // This will be updated by webhook
-            ]);
+        // Use the end date Stripe reports, which is right for monthly and yearly prices alike.
+        $subscription->update([
+            'ends_at' => $this->endsAt($stripeSubscription),
+        ]);
 
-            event(new SubscriptionCanceled($subscription));
-            
-            return $subscription;
-        });
+        event(new SubscriptionCanceled($subscription));
+
+        return $subscription;
     }
 
-    /**
-     * Cancel subscription immediately
-     */
     public function cancelImmediately(Subscription $subscription): Subscription
     {
-        if (!$subscription->isActive()) {
+        if (! $subscription->isActive()) {
             throw SubscriptionException::notActive();
         }
 
-        return DB::transaction(function () use ($subscription) {
-            // Cancel in Stripe
-            $this->stripeService->cancelSubscription($subscription->stripe_subscription_id);
+        $this->stripeService->cancelSubscription($subscription->stripe_subscription_id);
 
-            // Update local record
-            $subscription->update([
-                'stripe_status' => 'canceled',
-                'ends_at' => now()
-            ]);
+        $subscription->update([
+            'stripe_status' => SubscriptionStatus::CANCELED,
+            'ends_at' => now(),
+        ]);
 
-            event(new SubscriptionCanceled($subscription));
-            
-            return $subscription;
-        });
+        event(new SubscriptionCanceled($subscription));
+
+        return $subscription;
     }
 
-    /**
-     * Check if user has active subscription
-     */
     public function hasActiveSubscription(User $user): bool
     {
         return $user->subscriptions()
-            ->whereIn('stripe_status', ['active', 'trialing'])
+            ->active()
             ->exists();
     }
 
-    /**
-     * Get user's active subscription
-     */
     public function getActiveSubscription(User $user): ?Subscription
     {
         return $user->subscriptions()
-            ->whereIn('stripe_status', ['active', 'trialing'])
+            ->active()
             ->with(['plan', 'price'])
             ->first();
-    }
-
-    /**
-     * Check if user can subscribe to a plan
-     */
-    public function canSubscribeTo(User $user, PlanPrice $planPrice): bool
-    {
-        // Check if user already has active subscription for this plan
-        return !$user->subscriptions()
-            ->whereIn('stripe_status', ['active', 'trialing'])
-            ->where('plan_price_id', $planPrice->id)
-            ->exists();
     }
 }

@@ -18,22 +18,22 @@ class TrackUsage
 
     /**
      * Handle an incoming request
-     * 
-     * @param string $feature The feature to track usage for
-     * @param int $amount The amount of usage to record (default: 1)
+     *
+     * @param  string  $feature  The feature to track usage for
+     * @param  int  $amount  The amount of usage to record (default: 1)
      */
     public function handle(Request $request, Closure $next, string $feature, int $amount = 1): Response
     {
         $user = $request->user();
 
-        if (!$user) {
+        if (! $user) {
             return response()->json([
                 'message' => 'Authentication required',
             ], 401);
         }
 
         // Check if user can perform this action
-        if (!$this->featureGateService->canPerformAction($user, $feature, $amount)) {
+        if (! $this->featureGateService->canPerformAction($user, $feature, $amount)) {
             $current = $this->featureGateService->getCurrentUsage($user, $feature);
             $limit = $this->featureGateService->getUsageLimit($user, $feature);
 

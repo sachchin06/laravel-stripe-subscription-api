@@ -20,7 +20,7 @@ return new class extends Migration
 
             $table->string('stripe_subscription_id')->nullable();
             $table->string('stripe_customer_id')->nullable();
-            $table->string('stripe_status')->nullable(); 
+            $table->string('stripe_status')->nullable();
             $table->timestamp('trial_ends_at')->nullable();
             $table->timestamp('ends_at')->nullable();
 

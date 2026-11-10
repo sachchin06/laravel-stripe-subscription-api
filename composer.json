@@ -1,11 +1,14 @@
 {
     "$schema": "https://getcomposer.org/schema.json",
-    "name": "laravel/laravel",
+    "name": "sachchin06/stripe-subscription-api",
     "type": "project",
-    "description": "The skeleton application for the Laravel framework.",
+    "description": "Laravel REST API for Stripe subscription billing: Checkout, idempotent webhooks, plan management and plan-based feature gating.",
     "keywords": [
         "laravel",
-        "framework"
+        "stripe",
+        "subscriptions",
+        "billing",
+        "api"
     ],
     "license": "MIT",
     "require": {

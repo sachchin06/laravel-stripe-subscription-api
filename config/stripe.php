@@ -35,11 +35,13 @@ return [
     | Stripe API Version
     |--------------------------------------------------------------------------
     |
-    | This is the Stripe API version that will be used when making API calls.
+    | Pinned API version, passed explicitly to every StripeClient. The code
+    | relies on the field layout of this version (e.g. current_period_* on
+    | subscription items), so change it only together with the code.
     |
     */
 
-    'api_version' => env('STRIPE_API_VERSION', '2024-11-20.acacia'),
+    'api_version' => env('STRIPE_API_VERSION', '2025-10-29.clover'),
 
     /*
     |--------------------------------------------------------------------------

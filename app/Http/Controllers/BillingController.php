@@ -4,12 +4,13 @@ namespace App\Http\Controllers;
 
 use App\Domains\Billing\Services\InvoiceService;
 use App\Domains\Subscription\Services\FeatureGateService;
+use App\Http\Requests\Billing\BillingPortalRequest;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
 /**
  * Controller for billing-related operations
- * 
+ *
  * @OA\Tag(
  *     name="Billing",
  *     description="Billing and invoice management endpoints"
@@ -28,21 +29,28 @@ class BillingController extends Controller
      *     summary="Get user's invoice history",
      *     tags={"Billing"},
      *     security={{"sanctum":{}}},
+     *
      *     @OA\Parameter(
      *         name="limit",
      *         in="query",
      *         description="Number of invoices to retrieve (default: 10, max: 100)",
      *         required=false,
+     *
      *         @OA\Schema(type="integer", minimum=1, maximum=100, default=10)
      *     ),
+     *
      *     @OA\Response(
      *         response=200,
      *         description="Invoice history retrieved successfully",
+     *
      *         @OA\JsonContent(
+     *
      *             @OA\Property(
      *                 property="data",
      *                 type="array",
+     *
      *                 @OA\Items(
+     *
      *                     @OA\Property(property="id", type="string", example="in_1234567890"),
      *                     @OA\Property(property="number", type="string", example="INV-2024-001"),
      *                     @OA\Property(property="amount_paid", type="integer", example=2999),
@@ -58,6 +66,7 @@ class BillingController extends Controller
      *             )
      *         )
      *     ),
+     *
      *     @OA\Response(
      *         response=401,
      *         description="Unauthenticated"
@@ -66,8 +75,14 @@ class BillingController extends Controller
      */
     public function invoices(Request $request): JsonResponse
     {
-        $limit = $request->integer('limit', 10);
-        $invoices = $this->invoiceService->getInvoiceHistory($request->user(), $limit);
+        $validated = $request->validate([
+            'limit' => ['nullable', 'integer', 'min:1', 'max:100'],
+        ]);
+
+        $invoices = $this->invoiceService->getInvoiceHistory(
+            $request->user(),
+            (int) ($validated['limit'] ?? 10)
+        );
 
         return response()->json([
             'data' => $invoices,
@@ -80,14 +95,19 @@ class BillingController extends Controller
      *     summary="Get upcoming invoice preview",
      *     tags={"Billing"},
      *     security={{"sanctum":{}}},
+     *
      *     @OA\Response(
      *         response=200,
      *         description="Upcoming invoice retrieved successfully",
+     *
      *         @OA\JsonContent(
+     *
      *             @OA\Property(
      *                 property="data",
      *                 oneOf={
+     *
      *                     @OA\Schema(
+     *
      *                         @OA\Property(property="amount_due", type="integer", example=2999),
      *                         @OA\Property(property="currency", type="string", example="USD"),
      *                         @OA\Property(property="period_start", type="integer", example=1640995200),
@@ -95,11 +115,13 @@ class BillingController extends Controller
      *                         @OA\Property(property="next_payment_attempt", type="integer", example=1643673600),
      *                         @OA\Property(property="description", type="string", example="Pro Plan - Monthly")
      *                     ),
+     *
      *                     @OA\Schema(type="null")
      *                 }
      *             )
      *         )
      *     ),
+     *
      *     @OA\Response(
      *         response=401,
      *         description="Unauthenticated"
@@ -121,22 +143,28 @@ class BillingController extends Controller
      *     summary="Create billing portal session",
      *     tags={"Billing"},
      *     security={{"sanctum":{}}},
+     *
      *     @OA\RequestBody(
      *         required=false,
+     *
      *         @OA\JsonContent(
+     *
      *             @OA\Property(
      *                 property="return_url",
      *                 type="string",
      *                 format="url",
      *                 example="https://yourapp.com/billing",
-     *                 description="URL to redirect to after billing portal session"
+     *                 description="Where the portal returns the user. Must be on the FRONTEND_URL or APP_URL host; defaults to FRONTEND_URL."
      *             )
      *         )
      *     ),
+     *
      *     @OA\Response(
      *         response=200,
      *         description="Billing portal session created successfully",
+     *
      *         @OA\JsonContent(
+     *
      *             @OA\Property(
      *                 property="portal_url",
      *                 type="string",
@@ -146,29 +174,31 @@ class BillingController extends Controller
      *             )
      *         )
      *     ),
+     *
      *     @OA\Response(
      *         response=400,
      *         description="Unable to create billing portal session",
+     *
      *         @OA\JsonContent(
+     *
      *             @OA\Property(property="message", type="string", example="Unable to create billing portal session")
      *         )
      *     ),
+     *
      *     @OA\Response(
      *         response=401,
      *         description="Unauthenticated"
      *     )
      * )
      */
-    public function billingPortal(Request $request): JsonResponse
+    public function billingPortal(BillingPortalRequest $request): JsonResponse
     {
-        $returnUrl = $request->input('return_url', config('app.frontend_url', config('app.url')));
-        
         $portalUrl = $this->invoiceService->createBillingPortalSession(
             $request->user(),
-            $returnUrl
+            $request->returnUrl()
         );
 
-        if (!$portalUrl) {
+        if (! $portalUrl) {
             return response()->json([
                 'message' => 'Unable to create billing portal session',
             ], 400);
@@ -185,10 +215,13 @@ class BillingController extends Controller
      *     summary="Get user's usage summary",
      *     tags={"Billing"},
      *     security={{"sanctum":{}}},
+     *
      *     @OA\Response(
      *         response=200,
      *         description="Usage summary retrieved successfully",
+     *
      *         @OA\JsonContent(
+     *
      *             @OA\Property(
      *                 property="data",
      *                 type="object",
@@ -219,6 +252,7 @@ class BillingController extends Controller
      *             )
      *         )
      *     ),
+     *
      *     @OA\Response(
      *         response=401,
      *         description="Unauthenticated"

@@ -2,17 +2,18 @@
 
 namespace App\Http\Controllers;
 
-use App\Domains\Subscription\Services\ProductService;
 use App\Domains\Subscription\Services\PlanService;
+use App\Domains\Subscription\Services\ProductService;
+use App\Enums\BillingInterval;
 use App\Http\Resources\PlanResource;
 use App\Models\Plan;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Log;
+use Illuminate\Validation\Rule;
 
 /**
  * Controller for product/plan management (admin operations)
- * 
+ *
  * @OA\Tag(
  *     name="Products",
  *     description="Product and plan management endpoints"
@@ -31,10 +32,13 @@ class ProductController extends Controller
      *     summary="List all products/plans",
      *     tags={"Products"},
      *     security={{"sanctum":{}}},
+     *
      *     @OA\Response(
      *         response=200,
      *         description="List of products",
+     *
      *         @OA\JsonContent(
+     *
      *             @OA\Property(property="data", type="array", @OA\Items(ref="#/components/schemas/Plan"))
      *         )
      *     )
@@ -42,7 +46,7 @@ class ProductController extends Controller
      */
     public function index(): JsonResponse
     {
-        $plans = $this->planService->getAllPlansWithPrices();
+        $plans = $this->planService->getAllPlansWithPrices(includeInactive: true);
 
         return response()->json([
             'data' => PlanResource::collection($plans),
@@ -55,34 +59,43 @@ class ProductController extends Controller
      *     summary="Create a new product/plan with prices",
      *     tags={"Products"},
      *     security={{"sanctum":{}}},
+     *
      *     @OA\RequestBody(
      *         required=true,
+     *
      *         @OA\JsonContent(
      *             required={"name", "prices"},
+     *
      *             @OA\Property(property="name", type="string", example="Enterprise"),
      *             @OA\Property(property="slug", type="string", example="enterprise"),
      *             @OA\Property(property="description", type="string", example="Enterprise plan with all features"),
      *             @OA\Property(
      *                 property="prices",
      *                 type="array",
+     *
      *                 @OA\Items(
-     *                     @OA\Property(property="interval", type="string", enum={"monthly", "yearly"}),
+     *
+     *                     @OA\Property(property="interval", type="string", enum={"month", "year"}),
      *                     @OA\Property(property="price", type="integer", description="Price in cents", example=9900),
      *                     @OA\Property(property="currency", type="string", example="usd")
      *                 )
      *             )
      *         )
      *     ),
+     *
      *     @OA\Response(
      *         response=201,
      *         description="Product created successfully",
+     *
      *         @OA\JsonContent(
+     *
      *             @OA\Property(property="data", ref="#/components/schemas/Plan"),
      *             @OA\Property(property="message", type="string", example="Product created successfully")
      *         )
      *     ),
+     *
      *     @OA\Response(response=422, description="Validation error"),
-     *     @OA\Response(response=500, description="Stripe API error")
+     *     @OA\Response(response=502, description="Payment provider error")
      * )
      */
     public function store(Request $request): JsonResponse
@@ -92,26 +105,17 @@ class ProductController extends Controller
             'slug' => 'nullable|string|max:255|unique:plans,slug',
             'description' => 'nullable|string',
             'prices' => 'required|array|min:1',
-            'prices.*.interval' => 'required|in:monthly,yearly',
+            'prices.*.interval' => ['required', Rule::enum(BillingInterval::class)],
             'prices.*.price' => 'required|integer|min:0',
             'prices.*.currency' => 'nullable|string|size:3',
         ]);
 
-        try {
-            $plan = $this->productService->createPlanWithPrices($validated);
+        $plan = $this->productService->createPlanWithPrices($validated);
 
-            return response()->json([
-                'data' => new PlanResource($plan),
-                'message' => 'Product created successfully',
-            ], 201);
-
-        } catch (\Exception $e) {
-            Log::error('Failed to create product', ['error' => $e->getMessage()]);
-
-            return response()->json([
-                'message' => 'Failed to create product: ' . $e->getMessage(),
-            ], 500);
-        }
+        return response()->json([
+            'data' => new PlanResource($plan),
+            'message' => 'Product created successfully',
+        ], 201);
     }
 
     /**
@@ -120,17 +124,22 @@ class ProductController extends Controller
      *     summary="Get a specific product/plan",
      *     tags={"Products"},
      *     security={{"sanctum":{}}},
+     *
      *     @OA\Parameter(
      *         name="id",
      *         in="path",
      *         required=true,
+     *
      *         @OA\Schema(type="integer")
      *     ),
+     *
      *     @OA\Response(
      *         response=200,
      *         description="Product details",
+     *
      *         @OA\JsonContent(@OA\Property(property="data", ref="#/components/schemas/Plan"))
      *     ),
+     *
      *     @OA\Response(response=404, description="Product not found")
      * )
      */
@@ -147,29 +156,38 @@ class ProductController extends Controller
      *     summary="Update a product/plan",
      *     tags={"Products"},
      *     security={{"sanctum":{}}},
+     *
      *     @OA\Parameter(
      *         name="id",
      *         in="path",
      *         required=true,
+     *
      *         @OA\Schema(type="integer")
      *     ),
+     *
      *     @OA\RequestBody(
      *         required=true,
+     *
      *         @OA\JsonContent(
+     *
      *             @OA\Property(property="name", type="string", example="Enterprise Plus"),
      *             @OA\Property(property="description", type="string", example="Updated description")
      *         )
      *     ),
+     *
      *     @OA\Response(
      *         response=200,
      *         description="Product updated successfully",
+     *
      *         @OA\JsonContent(
+     *
      *             @OA\Property(property="data", ref="#/components/schemas/Plan"),
      *             @OA\Property(property="message", type="string")
      *         )
      *     ),
+     *
      *     @OA\Response(response=404, description="Product not found"),
-     *     @OA\Response(response=500, description="Stripe API error")
+     *     @OA\Response(response=502, description="Payment provider error")
      * )
      */
     public function update(Request $request, Plan $product): JsonResponse
@@ -179,21 +197,12 @@ class ProductController extends Controller
             'description' => 'nullable|string',
         ]);
 
-        try {
-            $plan = $this->productService->updatePlan($product, $validated);
+        $plan = $this->productService->updatePlan($product, $validated);
 
-            return response()->json([
-                'data' => new PlanResource($plan->load('prices')),
-                'message' => 'Product updated successfully',
-            ]);
-
-        } catch (\Exception $e) {
-            Log::error('Failed to update product', ['error' => $e->getMessage()]);
-
-            return response()->json([
-                'message' => 'Failed to update product: ' . $e->getMessage(),
-            ], 500);
-        }
+        return response()->json([
+            'data' => new PlanResource($plan->load('prices')),
+            'message' => 'Product updated successfully',
+        ]);
     }
 
     /**
@@ -202,37 +211,33 @@ class ProductController extends Controller
      *     summary="Archive a product/plan",
      *     tags={"Products"},
      *     security={{"sanctum":{}}},
+     *
      *     @OA\Parameter(
      *         name="id",
      *         in="path",
      *         required=true,
+     *
      *         @OA\Schema(type="integer")
      *     ),
+     *
      *     @OA\Response(
      *         response=200,
      *         description="Product archived successfully",
+     *
      *         @OA\JsonContent(@OA\Property(property="message", type="string"))
      *     ),
+     *
      *     @OA\Response(response=404, description="Product not found"),
-     *     @OA\Response(response=500, description="Stripe API error")
+     *     @OA\Response(response=502, description="Payment provider error")
      * )
      */
     public function destroy(Plan $product): JsonResponse
     {
-        try {
-            $this->productService->archivePlan($product);
+        $this->productService->archivePlan($product);
 
-            return response()->json([
-                'message' => 'Product archived successfully',
-            ]);
-
-        } catch (\Exception $e) {
-            Log::error('Failed to archive product', ['error' => $e->getMessage()]);
-
-            return response()->json([
-                'message' => 'Failed to archive product: ' . $e->getMessage(),
-            ], 500);
-        }
+        return response()->json([
+            'message' => 'Product archived successfully',
+        ]);
     }
 
     /**
@@ -241,56 +246,56 @@ class ProductController extends Controller
      *     summary="Add a new price to a product",
      *     tags={"Products"},
      *     security={{"sanctum":{}}},
+     *
      *     @OA\Parameter(
      *         name="id",
      *         in="path",
      *         required=true,
+     *
      *         @OA\Schema(type="integer")
      *     ),
+     *
      *     @OA\RequestBody(
      *         required=true,
+     *
      *         @OA\JsonContent(
      *             required={"interval", "price"},
-     *             @OA\Property(property="interval", type="string", enum={"monthly", "yearly"}),
+     *
+     *             @OA\Property(property="interval", type="string", enum={"month", "year"}),
      *             @OA\Property(property="price", type="integer", description="Price in cents", example=4900),
      *             @OA\Property(property="currency", type="string", example="usd")
      *         )
      *     ),
+     *
      *     @OA\Response(
      *         response=201,
      *         description="Price added successfully",
+     *
      *         @OA\JsonContent(
+     *
      *             @OA\Property(property="data", ref="#/components/schemas/PlanPrice"),
      *             @OA\Property(property="message", type="string")
      *         )
      *     ),
+     *
      *     @OA\Response(response=404, description="Product not found"),
-     *     @OA\Response(response=500, description="Stripe API error")
+     *     @OA\Response(response=502, description="Payment provider error")
      * )
      */
     public function addPrice(Request $request, Plan $product): JsonResponse
     {
         $validated = $request->validate([
-            'interval' => 'required|in:monthly,yearly',
+            'interval' => ['required', Rule::enum(BillingInterval::class)],
             'price' => 'required|integer|min:0',
             'currency' => 'nullable|string|size:3',
         ]);
 
-        try {
-            $price = $this->productService->createPriceForPlan($product, $validated);
+        $price = $this->productService->createPriceForPlan($product, $validated);
 
-            return response()->json([
-                'data' => $price,
-                'message' => 'Price added successfully',
-            ], 201);
-
-        } catch (\Exception $e) {
-            Log::error('Failed to add price', ['error' => $e->getMessage()]);
-
-            return response()->json([
-                'message' => 'Failed to add price: ' . $e->getMessage(),
-            ], 500);
-        }
+        return response()->json([
+            'data' => $price,
+            'message' => 'Price added successfully',
+        ], 201);
     }
 
     /**
@@ -299,16 +304,22 @@ class ProductController extends Controller
      *     summary="Sync products from Stripe",
      *     tags={"Products"},
      *     security={{"sanctum":{}}},
+     *
      *     @OA\RequestBody(
      *         required=false,
+     *
      *         @OA\JsonContent(
+     *
      *             @OA\Property(property="direction", type="string", enum={"from", "to"}, default="from")
      *         )
      *     ),
+     *
      *     @OA\Response(
      *         response=200,
      *         description="Sync completed",
+     *
      *         @OA\JsonContent(
+     *
      *             @OA\Property(property="message", type="string"),
      *             @OA\Property(property="synced", type="object",
      *                 @OA\Property(property="products", type="integer"),
@@ -316,31 +327,23 @@ class ProductController extends Controller
      *             )
      *         )
      *     ),
-     *     @OA\Response(response=500, description="Sync failed")
+     *
+     *     @OA\Response(response=502, description="Payment provider error")
      * )
      */
     public function sync(Request $request): JsonResponse
     {
-        $direction = $request->input('direction', 'from');
+        $direction = $request->validate([
+            'direction' => ['nullable', 'in:from,to'],
+        ])['direction'] ?? 'from';
 
-        try {
-            if ($direction === 'from') {
-                $result = $this->productService->syncFromStripe();
-            } else {
-                $result = $this->productService->syncToStripe();
-            }
+        $result = $direction === 'from'
+            ? $this->productService->syncFromStripe()
+            : $this->productService->syncToStripe();
 
-            return response()->json([
-                'message' => 'Sync completed successfully',
-                'synced' => $result,
-            ]);
-
-        } catch (\Exception $e) {
-            Log::error('Sync failed', ['error' => $e->getMessage()]);
-
-            return response()->json([
-                'message' => 'Sync failed: ' . $e->getMessage(),
-            ], 500);
-        }
+        return response()->json([
+            'message' => 'Sync completed successfully',
+            'synced' => $result,
+        ]);
     }
 }

@@ -1,10 +1,11 @@
 <?php
 
 use App\Http\Controllers\Api\AuthController;
-use App\Http\Controllers\SubscriptionController;
-use App\Http\Controllers\StripeWebhookController;
 use App\Http\Controllers\BillingController;
 use App\Http\Controllers\ProductController;
+use App\Http\Controllers\ReportController;
+use App\Http\Controllers\StripeWebhookController;
+use App\Http\Controllers\SubscriptionController;
 use Illuminate\Support\Facades\Route;
 
 /*
@@ -14,7 +15,7 @@ use Illuminate\Support\Facades\Route;
 */
 
 // Public routes
-Route::prefix('auth')->group(function () {
+Route::prefix('auth')->middleware('throttle:auth')->group(function () {
     Route::post('/register', [AuthController::class, 'register'])->name('auth.register');
     Route::post('/login', [AuthController::class, 'login'])->name('auth.login');
 });
@@ -25,7 +26,7 @@ Route::post('/webhooks/stripe', [StripeWebhookController::class, 'handle'])
 
 // Protected routes
 Route::middleware('auth:sanctum')->group(function () {
-  
+
     // Auth
     Route::prefix('auth')->group(function () {
         Route::post('/logout', [AuthController::class, 'logout'])->name('auth.logout');
@@ -53,8 +54,13 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::get('/usage', [BillingController::class, 'usage'])->name('billing.usage');
     });
 
-    // Products/Plans Management (Admin)
-    Route::prefix('products')->group(function () {
+    // Plan-gated feature: needs a plan with advanced_analytics, and each call counts towards api_calls
+    Route::get('/reports/usage', [ReportController::class, 'usage'])
+        ->middleware(['feature:advanced_analytics', 'usage:api_calls'])
+        ->name('reports.usage');
+
+    // Products/Plans management (admins only)
+    Route::prefix('products')->middleware('can:manage-products')->group(function () {
         Route::get('/', [ProductController::class, 'index'])->name('products.index');
         Route::post('/', [ProductController::class, 'store'])->name('products.store');
         Route::get('/{product}', [ProductController::class, 'show'])->name('products.show');

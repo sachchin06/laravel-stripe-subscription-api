@@ -11,7 +11,7 @@ class LogoutUserAction
 {
     /**
      * Execute user logout
-     * 
+     *
      * Revokes the current access token
      */
     public function execute(User $user): void

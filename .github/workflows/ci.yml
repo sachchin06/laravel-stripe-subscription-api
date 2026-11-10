@@ -1,0 +1,44 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  tests:
+    name: PHP ${{ matrix.php }}
+    runs-on: ubuntu-latest
+
+    strategy:
+      fail-fast: false
+      matrix:
+        # The app runs on PHP 8.2+, but the locked dev tools (Pest 4,
+        # PHPUnit 12) need 8.3+, so the test suite runs on 8.3 and 8.4.
+        php: ['8.3', '8.4']
+
+    steps:
+      - name: Check out code
+        uses: actions/checkout@v4
+
+      - name: Set up PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: ${{ matrix.php }}
+          extensions: pdo_sqlite, sqlite3
+          coverage: pcov
+
+      - name: Install Composer dependencies
+        run: composer install --no-interaction --prefer-dist --no-progress
+
+      - name: Prepare environment
+        run: |
+          cp .env.example .env
+          php artisan key:generate
+
+      - name: Check code style
+        run: vendor/bin/pint --test
+
+      # Tests use in-memory SQLite and a mocked Stripe service: no database
+      # server or Stripe keys are needed.
+      - name: Run tests with coverage
+        run: vendor/bin/pest --coverage

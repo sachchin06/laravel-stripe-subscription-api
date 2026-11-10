@@ -4,16 +4,18 @@ namespace App\Domains\Webhooks\Services;
 
 use App\Domains\Shared\Services\StripeService;
 use App\Domains\Webhooks\Jobs\HandleCheckoutSessionCompleted;
-use App\Domains\Webhooks\Jobs\HandleSubscriptionUpdated;
-use App\Domains\Webhooks\Jobs\HandleSubscriptionDeleted;
 use App\Domains\Webhooks\Jobs\HandleInvoicePaid;
 use App\Domains\Webhooks\Jobs\HandleInvoicePaymentFailed;
+use App\Domains\Webhooks\Jobs\HandleSubscriptionDeleted;
+use App\Domains\Webhooks\Jobs\HandleSubscriptionUpdated;
 use App\Exceptions\StripeWebhookException;
+use App\Models\StripeEvent;
 use Illuminate\Support\Facades\Log;
+use Stripe\Exception\SignatureVerificationException;
 
 /**
  * Service for processing Stripe webhooks
- * 
+ *
  * This service handles webhook validation and dispatches
  * appropriate jobs for async processing.
  */
@@ -24,48 +26,70 @@ class WebhookService
     ) {}
 
     /**
-     * Process incoming webhook payload
+     * Verify the request and queue a job for the event.
+     *
+     * A bad signature or payload throws StripeWebhookException (400, so Stripe
+     * does not retry). Any other failure, such as the database being down, is
+     * left to the global handler, which returns a 5xx so that Stripe retries.
      */
     public function processWebhook(string $payload, ?string $signature): void
     {
-        if (!$signature) {
-            throw StripeWebhookException::invalidSignature('Missing Stripe-Signature header');
+        if (! $signature) {
+            throw StripeWebhookException::invalidSignature();
         }
 
         try {
-            // Construct and validate the webhook event
             $event = $this->stripeService->constructWebhookEvent($payload, $signature);
-            
-            Log::info('Stripe webhook received', [
-                'type' => $event->type,
-                'id' => $event->id,
-            ]);
+        } catch (SignatureVerificationException $e) {
+            Log::warning('Rejected Stripe webhook: invalid signature', ['reason' => $e->getMessage()]);
 
-            // Dispatch appropriate job based on event type
+            throw StripeWebhookException::invalidSignature();
+        } catch (\UnexpectedValueException $e) {
+            Log::warning('Rejected Stripe webhook: invalid payload', ['reason' => $e->getMessage()]);
+
+            throw StripeWebhookException::invalidPayload();
+        }
+
+        Log::info('Stripe webhook received', [
+            'type' => $event->type,
+            'id' => $event->id,
+        ]);
+
+        // Stripe delivers events at least once, so the same event can arrive twice.
+        if (! $this->recordEvent($event)) {
+            Log::info('Duplicate Stripe event skipped', ['id' => $event->id]);
+
+            return;
+        }
+
+        try {
             $this->dispatchWebhookJob($event);
+        } catch (\Throwable $e) {
+            // Forget the event so that Stripe's retry is processed instead of skipped.
+            StripeEvent::where('event_id', $event->id)->delete();
 
-            Log::info('Webhook job dispatched successfully', [
-                'event_type' => $event->type,
-                'event_id' => $event->id,
-            ]);
-
-        } catch (\Stripe\Exception\SignatureVerificationException $e) {
-            Log::error('Invalid webhook signature', [
-                'error' => $e->getMessage(),
-            ]);
-            throw StripeWebhookException::invalidSignature($e->getMessage());
-        } catch (\Exception $e) {
-            Log::error('Webhook processing failed', [
-                'error' => $e->getMessage(),
-                'trace' => $e->getTraceAsString(),
-            ]);
-            throw StripeWebhookException::processingFailed($e->getMessage());
+            throw $e;
         }
     }
 
     /**
-     * Dispatch the appropriate job for the webhook event
+     * Record the event ID. Returns false if it was already recorded.
+     *
+     * The unique index on event_id makes this safe when two deliveries of the
+     * same event arrive at the same time: only one insert can succeed.
      */
+    private function recordEvent(\Stripe\Event $event): bool
+    {
+        $inserted = StripeEvent::query()->insertOrIgnore([
+            'event_id' => $event->id,
+            'type' => $event->type,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        return $inserted === 1;
+    }
+
     private function dispatchWebhookJob(\Stripe\Event $event): void
     {
         $eventData = $event->data->object->toArray();
@@ -73,24 +97,21 @@ class WebhookService
         match ($event->type) {
             // Checkout events
             'checkout.session.completed' => HandleCheckoutSessionCompleted::dispatch($eventData),
-            
+
             // Subscription events
             'customer.subscription.created' => HandleSubscriptionUpdated::dispatch($eventData),
             'customer.subscription.updated' => HandleSubscriptionUpdated::dispatch($eventData),
             'customer.subscription.deleted' => HandleSubscriptionDeleted::dispatch($eventData),
-            
+
             // Invoice events
             'invoice.paid' => HandleInvoicePaid::dispatch($eventData),
             'invoice.payment_failed' => HandleInvoicePaymentFailed::dispatch($eventData),
-            
+
             // Unhandled events
             default => Log::info('Unhandled Stripe event type', ['type' => $event->type]),
         };
     }
 
-    /**
-     * Get supported webhook event types
-     */
     public function getSupportedEventTypes(): array
     {
         return [

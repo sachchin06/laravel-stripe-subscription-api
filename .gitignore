@@ -22,3 +22,15 @@
 Homestead.json
 Homestead.yaml
 Thumbs.db
+
+# Personal notes and AI planning files (not part of the project)
+/.kiro/
+/AUTH_DOMAIN_COMPLETE.md
+/PROJECT_INTERVIEW_GUIDE.md
+/SAAS_FEATURES_COMPLETE.md
+/SAAS_REFACTOR_PLAN.md
+/SAAS_REFACTOR_SUMMARY.md
+/SAAS_STARTER_KIT_GUIDE.md
+/SWAGGER_BILLING_UPDATE.md
+/fix-log.md
+/project-audit.md

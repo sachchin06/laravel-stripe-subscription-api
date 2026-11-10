@@ -2,8 +2,8 @@
 
 namespace App\Domains\Subscription\Services;
 
-use App\Models\User;
 use App\Models\UsageRecord;
+use App\Models\User;
 use Carbon\Carbon;
 
 /**
@@ -11,9 +11,6 @@ use Carbon\Carbon;
  */
 class UsageTrackingService
 {
-    /**
-     * Record usage for a user and feature
-     */
     public function recordUsage(User $user, string $feature, int $amount = 1, array $metadata = []): UsageRecord
     {
         return UsageRecord::create([
@@ -25,9 +22,6 @@ class UsageTrackingService
         ]);
     }
 
-    /**
-     * Get current month usage for a user and feature
-     */
     public function getCurrentMonthUsage(User $user, string $feature): int
     {
         return UsageRecord::where('user_id', $user->id)
@@ -36,9 +30,6 @@ class UsageTrackingService
             ->sum('amount');
     }
 
-    /**
-     * Get usage for a specific period
-     */
     public function getUsageInPeriod(User $user, string $feature, Carbon $start, Carbon $end): int
     {
         return UsageRecord::where('user_id', $user->id)
@@ -47,9 +38,6 @@ class UsageTrackingService
             ->sum('amount');
     }
 
-    /**
-     * Check if user can perform action based on usage limits
-     */
     public function canPerformAction(User $user, string $feature, int $requestedAmount = 1): bool
     {
         $currentUsage = $this->getCurrentMonthUsage($user, $feature);
@@ -64,22 +52,25 @@ class UsageTrackingService
     }
 
     /**
-     * Get user's limit for a feature based on their subscription
+     * The user's monthly limit for a feature; null means unlimited.
+     *
+     * In config/features.php a null limit deliberately means "unlimited", so a
+     * missing entry must not be read as null. A plan (or a plan's feature) that
+     * is not configured, e.g. one created through the products API, falls back
+     * to the free-tier limit.
      */
     public function getUserLimit(User $user, string $feature): ?int
     {
-        $subscription = $user->activeSubscription();
-        
-        if (!$subscription) {
-            return config("features.limits.free.{$feature}");
+        $freeLimit = config("features.limits.free.{$feature}");
+        $planLimits = config('features.limits.plans.'.$user->activeSubscription()?->plan->slug);
+
+        if (! is_array($planLimits) || ! array_key_exists($feature, $planLimits)) {
+            return $freeLimit;
         }
 
-        return config("features.limits.plans.{$subscription->plan->slug}.{$feature}");
+        return $planLimits[$feature];
     }
 
-    /**
-     * Get usage summary for a user
-     */
     public function getUsageSummary(User $user): array
     {
         $features = ['api_calls', 'storage_mb', 'team_members'];
@@ -88,7 +79,7 @@ class UsageTrackingService
         foreach ($features as $feature) {
             $current = $this->getCurrentMonthUsage($user, $feature);
             $limit = $this->getUserLimit($user, $feature);
-            
+
             $summary[$feature] = [
                 'current' => $current,
                 'limit' => $limit,
@@ -100,9 +91,6 @@ class UsageTrackingService
         return $summary;
     }
 
-    /**
-     * Get usage history for a user and feature
-     */
     public function getUsageHistory(User $user, string $feature, int $days = 30): array
     {
         $records = UsageRecord::where('user_id', $user->id)

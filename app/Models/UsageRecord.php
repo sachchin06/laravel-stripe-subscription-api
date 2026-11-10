@@ -31,30 +31,21 @@ class UsageRecord extends Model
         return $this->belongsTo(User::class);
     }
 
-    /**
-     * Scope to filter by feature
-     */
     public function scopeForFeature($query, string $feature)
     {
         return $query->where('feature', $feature);
     }
 
-    /**
-     * Scope to filter by date range
-     */
     public function scopeInPeriod($query, \Carbon\Carbon $start, \Carbon\Carbon $end)
     {
         return $query->whereBetween('recorded_at', [$start, $end]);
     }
 
-    /**
-     * Scope for current month usage
-     */
     public function scopeCurrentMonth($query)
     {
         return $query->whereBetween('recorded_at', [
             now()->startOfMonth(),
-            now()->endOfMonth()
+            now()->endOfMonth(),
         ]);
     }
 }

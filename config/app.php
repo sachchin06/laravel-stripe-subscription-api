@@ -56,6 +56,19 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | Frontend URL
+    |--------------------------------------------------------------------------
+    |
+    | Where Stripe Checkout and the Billing Portal send users back to. By
+    | default this is the API itself, which serves simple success and cancel
+    | pages. Point it at your SPA or mobile deep-link host when you have one.
+    |
+    */
+
+    'frontend_url' => rtrim(env('FRONTEND_URL', env('APP_URL', 'http://localhost')), '/'),
+
+    /*
+    |--------------------------------------------------------------------------
     | Application Timezone
     |--------------------------------------------------------------------------
     |
