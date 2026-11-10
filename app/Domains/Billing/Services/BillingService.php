@@ -120,7 +120,7 @@ class BillingService
      */
     public function generateCheckoutUrls(): array
     {
-        $baseUrl = config('app.frontend_url', config('app.url'));
+        $baseUrl = config('app.frontend_url');
         
         return [
             'success_url' => $baseUrl . '/subscription/success?session_id={CHECKOUT_SESSION_ID}',
