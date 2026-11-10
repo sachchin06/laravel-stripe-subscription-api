@@ -113,14 +113,22 @@ class ProductService
         $products = $this->stripeService->listProducts(['active' => true, 'limit' => 100]);
 
         foreach ($products->data as $product) {
-            $plan = Plan::updateOrCreate(
-                ['stripe_product_id' => $product->id],
-                [
-                    'name' => $product->name,
-                    'slug' => $product->metadata['slug'] ?? Str::slug($product->name),
-                    'description' => $product->description,
-                ]
-            );
+            $slug = $product->metadata['slug'] ?? Str::slug($product->name);
+            $plan = $this->findPlanForProduct($product->id, $slug);
+
+            $plan->fill([
+                'name' => $product->name,
+                'description' => $product->description,
+                'stripe_product_id' => $product->id,
+            ]);
+
+            // Existing plans keep their slug. A new plan gets a free one, so a Stripe
+            // product called "Basic" cannot collide with an unrelated local "basic" plan.
+            if (!$plan->exists) {
+                $plan->slug = $this->uniqueSlug($slug);
+            }
+
+            $plan->save();
             $synced['products']++;
 
             $prices = $this->stripeService->listPricesForProduct($product->id);
@@ -136,15 +144,23 @@ class ProductService
                     continue; // Daily and weekly prices are not offered by this app.
                 }
 
-                PlanPrice::updateOrCreate(
-                    ['stripe_price_id' => $stripePrice->id],
-                    [
-                        'plan_id' => $plan->id,
-                        'price' => $stripePrice->unit_amount,
-                        'currency' => $stripePrice->currency,
-                        'interval' => $interval,
-                    ]
-                );
+                $price = PlanPrice::where('stripe_price_id', $stripePrice->id)->first()
+                    // Or the same local price that has not been pushed to Stripe yet.
+                    ?? $plan->prices()
+                        ->whereNull('stripe_price_id')
+                        ->where('interval', $interval)
+                        ->where('price', $stripePrice->unit_amount)
+                        ->where('currency', $stripePrice->currency)
+                        ->first()
+                    ?? new PlanPrice();
+
+                $price->fill([
+                    'plan_id' => $plan->id,
+                    'stripe_price_id' => $stripePrice->id,
+                    'price' => $stripePrice->unit_amount,
+                    'currency' => $stripePrice->currency,
+                    'interval' => $interval,
+                ])->save();
                 $synced['prices']++;
             }
         }
@@ -152,6 +168,28 @@ class ProductService
         Log::info('Stripe sync completed', $synced);
 
         return $synced;
+    }
+
+    /**
+     * The plan already linked to this product, otherwise a local plan with the
+     * same slug that has no Stripe product yet (e.g. a seeded plan), otherwise a new one.
+     */
+    private function findPlanForProduct(string $stripeProductId, string $slug): Plan
+    {
+        return Plan::where('stripe_product_id', $stripeProductId)->first()
+            ?? Plan::where('slug', $slug)->whereNull('stripe_product_id')->first()
+            ?? new Plan();
+    }
+
+    private function uniqueSlug(string $slug): string
+    {
+        $candidate = $slug;
+
+        for ($suffix = 2; Plan::where('slug', $candidate)->exists(); $suffix++) {
+            $candidate = "{$slug}-{$suffix}";
+        }
+
+        return $candidate;
     }
 
     /**

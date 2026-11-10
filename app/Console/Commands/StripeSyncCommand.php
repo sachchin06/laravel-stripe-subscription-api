@@ -3,6 +3,7 @@
 namespace App\Console\Commands;
 
 use App\Domains\Subscription\Services\ProductService;
+use App\Models\PlanPrice;
 use Illuminate\Console\Command;
 
 class StripeSyncCommand extends Command
@@ -33,6 +34,18 @@ class StripeSyncCommand extends Command
             }
 
             $this->info('Sync completed successfully!');
+
+            // The price IDs are what POST /api/subscriptions/checkout expects.
+            $this->table(
+                ['Plan', 'Interval', 'Amount', 'Stripe price ID'],
+                PlanPrice::with('plan')->orderBy('plan_id')->get()->map(fn (PlanPrice $price) => [
+                    $price->plan->slug,
+                    $price->interval->value,
+                    $price->formatted_price,
+                    $price->stripe_price_id ?? '(not in Stripe yet)',
+                ])
+            );
+
             return self::SUCCESS;
 
         } catch (\Exception $e) {

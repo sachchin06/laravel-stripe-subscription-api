@@ -2,80 +2,52 @@
 
 namespace Database\Seeders;
 
+use App\Enums\BillingInterval;
 use App\Models\Plan;
-use App\Models\PlanPrice;
-use Illuminate\Database\Console\Seeds\WithoutModelEvents;
 use Illuminate\Database\Seeder;
 
+/**
+ * Creates the Basic and Pro plans locally, without Stripe IDs.
+ *
+ * Run `php artisan stripe:sync to` afterwards to create the matching
+ * products and prices in your own Stripe account and store their IDs.
+ */
 class PlanPriceSeeder extends Seeder
 {
-    /**
-     * Run the database seeds.
-     */
     public function run(): void
     {
-
-        // 1. Create Plans
         $plans = [
             [
                 'name' => 'Basic',
                 'slug' => 'basic',
                 'description' => 'Basic subscription plan',
-                'stripe_product_id' => 'prod_TQDHtRRM99Ei9Z',
                 'prices' => [
-                    [
-                        'interval' => 'month',
-                        'price' => 2000, // $20
-                        'currency' => 'usd',
-                        'stripe_price_id' => 'price_1STMrGHQSIupoCydZKpi5Z2l',
-                    ],
-                    [
-                        'interval' => 'year',
-                        'price' => 20000, // $200
-                        'currency' => 'usd',
-                        'stripe_price_id' => 'price_1STMrGHQSIupoCydlWBMZam4',
-                    ],
+                    BillingInterval::MONTH->value => 2000, // $20.00
+                    BillingInterval::YEAR->value => 20000, // $200.00
                 ],
             ],
             [
                 'name' => 'Pro',
                 'slug' => 'pro',
                 'description' => 'Pro plan with premium features',
-                'stripe_product_id' => 'prod_TQDKhSXR5kiICN',
                 'prices' => [
-                    [
-                        'interval' => 'month',
-                        'price' => 3000, // $30
-                        'currency' => 'usd',
-                        'stripe_price_id' => 'price_1STMtkHQSIupoCydA2dTOSke',
-                    ],
-                    [
-                        'interval' => 'year',
-                        'price' => 32000, // $320
-                        'currency' => 'usd',
-                        'stripe_price_id' => 'price_1STMtkHQSIupoCydpCBFl8D2',
-                    ],
+                    BillingInterval::MONTH->value => 3000, // $30.00
+                    BillingInterval::YEAR->value => 32000, // $320.00
                 ],
             ],
         ];
 
-        // 2. Insert into DB
         foreach ($plans as $planData) {
-            $plan = Plan::create([
-                'name' => $planData['name'],
-                'slug' => $planData['slug'],
-                'description' => $planData['description'],
-                'stripe_product_id' => $planData['stripe_product_id'],
-            ]);
+            $plan = Plan::firstOrCreate(
+                ['slug' => $planData['slug']],
+                ['name' => $planData['name'], 'description' => $planData['description']]
+            );
 
-            foreach ($planData['prices'] as $priceData) {
-                PlanPrice::create([
-                    'plan_id'        => $plan->id,
-                    'stripe_price_id' => $priceData['stripe_price_id'],
-                    'interval' => $priceData['interval'],
-                    'price'         => $priceData['price'],
-                    'currency'       => $priceData['currency'],
-                ]);
+            foreach ($planData['prices'] as $interval => $amount) {
+                $plan->prices()->firstOrCreate(
+                    ['interval' => $interval],
+                    ['price' => $amount, 'currency' => config('stripe.currency', 'usd')]
+                );
             }
         }
     }
