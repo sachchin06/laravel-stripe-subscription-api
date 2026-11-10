@@ -1,293 +1,253 @@
 # Laravel Stripe Subscription API
 
-[![CI](https://github.com/sachchin06/laravel-stripe-subscription-api/actions/workflows/ci.yml/badge.svg)](https://github.com/sachchin06/laravel-stripe-subscription-api/actions/workflows/ci.yml)
+A REST API for SaaS subscription billing on Stripe, built with Laravel 12.
 
-A Laravel REST API for SaaS subscription billing with Stripe: Checkout, webhooks, plan management and plan-based feature gating.
+[![CI](https://github.com/sachchin06/laravel-stripe-subscription-api/actions/workflows/ci.yml/badge.svg)](https://github.com/sachchin06/laravel-stripe-subscription-api/actions/workflows/ci.yml)
+[![Licence: MIT](https://img.shields.io/github/license/sachchin06/laravel-stripe-subscription-api)](LICENSE)
+![PHP 8.2+](https://img.shields.io/badge/PHP-8.2%2B-777BB4)
+
+## Overview
+
+Users sign up, pick a plan and pay through Stripe Checkout. The API then keeps a local copy of each subscription in step with Stripe, and uses it to decide which features a user may access and how much they may use.
+
+The interesting part is keeping that local copy correct. Stripe delivers webhooks at least once and in no guaranteed order, so the same event can arrive twice, and an old event can arrive after a newer one. Most of the design below exists to make that harmless.
 
 ## Features
 
-- **Authentication** - Laravel Sanctum token auth, with rate-limited login and registration and expiring tokens
-- **Subscription Management** - Subscribe through Stripe Checkout, cancel, resume and change plans (one active subscription per user)
-- **Stripe Integration** - Checkout sessions, Billing Portal, and webhooks that are idempotent and safe against events arriving out of order
-- **Product Management (admin)** - Create, update and archive products and prices, and sync them with Stripe in either direction
-- **Billing** - Invoice history, upcoming invoice preview, usage tracking
-- **Feature Gating** - Plan-based feature access and monthly usage limits, applied by middleware (see `GET /api/reports/usage`)
-- **Tested** - 147 Pest tests with Stripe mocked, run in GitHub Actions together with a Pint style check
+- Token authentication with Laravel Sanctum, rate-limited login and registration, and tokens that expire
+- Subscribing through Stripe Checkout, with one active subscription per user
+- Cancelling at period end, resuming, and changing plan with proration
+- Stripe Billing Portal sessions, invoice history and an upcoming-invoice preview
+- Signed, idempotent webhook handling, processed by queued jobs
+- Plan and price management for admins, with two-way sync between the database and Stripe
+- Soft archiving of plans that still have subscribers
+- Plan-based feature access and monthly usage limits, enforced by middleware
+- OpenAPI (Swagger) documentation
+- A Pest test suite that runs without Stripe keys, and a GitHub Actions workflow
 
-## Requirements
+## How it works
 
-- PHP 8.2+ to run the app (8.3+ to run the tests)
-- MySQL
-- Composer
-- Stripe CLI (for local webhook testing)
-- Node.js & npm (optional: only the default welcome page uses Vite)
+The API never creates a subscription when the user returns from Checkout. It creates one only when Stripe confirms the payment through a webhook.
 
-## First Time Setup
+```mermaid
+sequenceDiagram
+    participant C as Client
+    participant A as API
+    participant S as Stripe
+    participant Q as Queue worker
 
-```bash
-# 1. Install PHP dependencies
-composer install
-
-# 2. Copy environment file
-copy .env.example .env          # Git Bash / macOS / Linux: cp .env.example .env
-
-# 3. Generate application key
-php artisan key:generate
-
-# 4. Configure .env:
-#    - Database: DB_DATABASE, DB_USERNAME, DB_PASSWORD
-#    - Stripe test keys: STRIPE_KEY, STRIPE_SECRET
-#    - STRIPE_WEBHOOK_SECRET comes from `stripe listen` (see below)
-
-# 5. Run migrations with seed data (plans, plus a test user and an admin user)
-php artisan migrate --seed
-
-# 6. Create the seeded plans in YOUR Stripe account (prints the price IDs)
-php artisan stripe:sync to
-
-# 7. Generate Swagger documentation
-php artisan l5-swagger:generate
+    C->>A: POST /api/subscriptions/checkout
+    A->>S: Expire open Checkout sessions, create a new one
+    S-->>A: Session URL
+    A-->>C: checkout_url
+    C->>S: Pays on the Stripe Checkout page
+    S->>A: POST /api/webhooks/stripe (signed event)
+    A->>A: Verify signature, record event ID
+    A->>Q: Queue a job for the event
+    A-->>S: 200
+    Q->>S: Retrieve the subscription
+    S-->>Q: Current subscription state
+    Q->>Q: Write status, plan and dates to the database
 ```
 
-### Seeded users
+The webhook endpoint handles `checkout.session.completed`, `customer.subscription.created`, `customer.subscription.updated`, `customer.subscription.deleted`, `invoice.paid` and `invoice.payment_failed`. Each queued job is tried up to three times, one minute apart.
+
+## Design decisions
+
+**Webhook idempotency.** Stripe may deliver the same event more than once, sometimes at the same moment. Each event ID is inserted into a `stripe_events` table with a unique index before its job is queued, and an event whose ID is already there is skipped. A unique index on `subscriptions.stripe_subscription_id` stops two workers creating the same subscription.
+
+**Out-of-order safety.** A late event must not overwrite newer state, for example a delayed `invoice.paid` reactivating a cancelled subscription. Jobs therefore use the event only to learn which subscription changed, then fetch its current state from the Stripe API and store that. The same step picks up plan changes made in the Billing Portal.
+
+**No Stripe calls inside database transactions.** A rollback cannot undo an HTTP call, so a transaction around a Stripe call can leave the two systems disagreeing. The API writes local rows first, calls Stripe outside any transaction, then stores the returned IDs. Create calls send idempotency keys derived from the local row, so `php artisan stripe:sync to` can safely finish a half-completed create.
+
+**One subscription per user.** Checkout returns 409 if the user already has an active or trialing subscription, and plan changes go through `change-plan` instead. Before creating a Checkout session, the API expires the customer's other open sessions, so two browser tabs cannot both be paid.
+
+**Soft-archived plans.** Deleting a plan with subscribers would lose history and break foreign keys. Archiving such a plan marks it inactive: it disappears from `/api/plans` and accepts no new subscribers, while existing subscriptions keep working. A plan nobody has used is deleted.
+
+**Plan-based feature gating.** Features and monthly limits per plan live in `config/features.php`. The `feature` middleware returns 403 when the plan lacks a feature, and the `usage` middleware returns 429 over the limit and records usage only for successful responses. `GET /api/reports/usage` shows both in use.
+
+## Tech stack
+
+| Area | Choice |
+|------|--------|
+| Language and framework | PHP 8.2+ (8.3+ for the test tools), Laravel 12 |
+| Authentication | Laravel Sanctum 4 |
+| Payments | Stripe PHP SDK 18, pinned to API version `2025-10-29.clover` |
+| Database | MySQL in development; in-memory SQLite in tests |
+| Queue and cache | Laravel database drivers |
+| API docs | L5-Swagger (OpenAPI annotations) |
+| Testing and style | Pest 4, Mockery, Laravel Pint |
+| CI | GitHub Actions on PHP 8.3 and 8.4 |
+
+## Getting started
+
+### Requirements
+
+- PHP 8.2 or later (8.3 or later to run the tests), with `pdo_mysql`, and `pdo_sqlite` for the tests
+- Composer
+- MySQL
+- A Stripe account in test mode
+- The [Stripe CLI](https://stripe.com/docs/stripe-cli), logged in with `stripe login`
+
+### Setup
+
+macOS / Linux:
+
+```bash
+git clone https://github.com/sachchin06/laravel-stripe-subscription-api.git
+cd laravel-stripe-subscription-api
+composer install
+cp .env.example .env
+php artisan key:generate
+```
+
+Windows (PowerShell):
+
+```powershell
+git clone https://github.com/sachchin06/laravel-stripe-subscription-api.git
+cd laravel-stripe-subscription-api
+composer install
+copy .env.example .env
+php artisan key:generate
+```
+
+Create an empty MySQL database, then set `DB_DATABASE`, `DB_USERNAME`, `DB_PASSWORD`, `STRIPE_KEY` and `STRIPE_SECRET` in `.env`. Then:
+
+```bash
+php artisan migrate --seed          # tables, two plans, and the users below
+php artisan stripe:sync to          # creates the plans in your Stripe account and prints the price IDs
+php artisan l5-swagger:generate     # API docs at /api/documentation
+```
+
+The seeder creates a Basic plan ($20 a month or $200 a year) and a Pro plan ($30 a month or $320 a year), plus two users:
 
 | Email | Password | Role |
 |-------|----------|------|
 | `test@example.com` | `password` | Normal user |
-| `admin@example.com` | `password` | Admin (can use `/api/products`) |
+| `admin@example.com` | `password` | Admin: can manage `/api/products` |
 
-### Optional settings
+### Run
 
-These have defaults, so you only need to set them to change the behaviour:
+Use three terminals:
 
-```env
-FRONTEND_URL="${APP_URL}"            # where Stripe sends users back after Checkout / Billing Portal
-STRIPE_API_VERSION=2025-10-29.clover  # the Stripe API version the code is written for
-SANCTUM_TOKEN_EXPIRATION=10080        # API token lifetime in minutes (7 days)
+```bash
+php artisan serve                   # API on http://localhost:8000
+php artisan queue:work              # processes webhook jobs
+stripe listen --latest --forward-to http://localhost:8000/api/webhooks/stripe
 ```
 
-By default the app serves simple success and cancel pages at `/subscription/success` and `/subscription/cancel`.
+`stripe listen` prints a webhook signing secret (`whsec_...`). Put it in `.env` as `STRIPE_WEBHOOK_SECRET` and restart the first two terminals. Without the queue worker, payments succeed in Stripe but no subscription is stored.
 
-## Running the Application
+To try a payment, call the checkout endpoint, open the returned `checkout_url`, and pay with the test card `4242 4242 4242 4242`, any future expiry date and any CVC.
 
-You need **3 terminals** running at the same time:
+### Webhook API version
 
-| Terminal | Command | Purpose |
+The code reads webhook payloads in the `2025-10-29.clover` format. Locally, the `--latest` flag on `stripe listen` sends events in the newest API version. For a webhook endpoint created in the Stripe Dashboard, set its API version to `2025-10-29.clover`; otherwise invoice events may not include the subscription ID where the code looks for it.
+
+## Configuration
+
+| Variable | Purpose | Default |
 |----------|---------|---------|
-| 1 | `php artisan serve` | API server at http://localhost:8000 |
-| 2 | `php artisan queue:work` | Process webhook jobs |
-| 3 | `stripe listen --latest --forward-to http://localhost:8000/api/webhooks/stripe` | Forward Stripe webhooks |
+| `APP_URL` | Base URL of the API | `http://localhost:8000` |
+| `FRONTEND_URL` | Where Stripe returns users after Checkout and the Billing Portal; also the only host (with `APP_URL`) accepted as a portal `return_url` | `APP_URL` |
+| `DB_DATABASE`, `DB_USERNAME`, `DB_PASSWORD` | MySQL connection | |
+| `QUEUE_CONNECTION` | Queue for webhook jobs | `database` |
+| `CACHE_STORE` | Also holds the locks that serialise subscription syncs | `database` |
+| `STRIPE_SECRET` | Stripe secret key | |
+| `STRIPE_KEY` | Stripe publishable key; the API does not use it, a frontend would | |
+| `STRIPE_WEBHOOK_SECRET` | Signing secret for verifying webhooks | |
+| `STRIPE_API_VERSION` | Stripe API version sent on every request | `2025-10-29.clover` |
+| `STRIPE_CURRENCY` | Currency for new prices | `usd` |
+| `SANCTUM_TOKEN_EXPIRATION` | API token lifetime in minutes | `10080` (7 days) |
 
-> **Important:** The queue worker MUST be running, or webhooks never create subscriptions in the database.
+With no frontend, `FRONTEND_URL` defaults to the API, which serves basic success and cancel pages at `/subscription/success` and `/subscription/cancel`.
 
-**The first time,** `stripe listen` prints a webhook secret (`whsec_...`). Put it in `.env` as `STRIPE_WEBHOOK_SECRET`, then restart terminals 1 and 2. The `--latest` flag sends events in the Stripe API version the code expects.
-
-`composer dev` starts terminals 1 and 2 (plus Vite) with one command, but it does **not** start the Stripe CLI.
-
-## Installing Stripe CLI
-
-**Windows (Scoop):**
-```powershell
-scoop install stripe
-```
-
-**Windows (Chocolatey):**
-```powershell
-choco install stripe-cli
-```
-
-**Mac:**
-```bash
-brew install stripe/stripe-cli/stripe
-```
-
-After installation:
-```bash
-stripe login
-```
-
-## API Endpoints
-
-### Authentication
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| POST | `/api/auth/register` | Register new user (rate limited) |
-| POST | `/api/auth/login` | Login user (rate limited) |
-| POST | `/api/auth/logout` | Logout user (revokes the token) |
-| GET | `/api/auth/user` | Get current user |
-
-### Plans
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| GET | `/api/plans` | List active subscription plans |
-
-### Subscriptions
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| GET | `/api/subscriptions` | Get user's subscription status |
-| GET | `/api/subscriptions/details` | Get detailed Stripe subscription info |
-| POST | `/api/subscriptions/checkout` | Create Stripe checkout session (409 if already subscribed) |
-| POST | `/api/subscriptions/cancel` | Cancel subscription at period end |
-| POST | `/api/subscriptions/resume` | Resume cancelled subscription |
-| POST | `/api/subscriptions/change-plan` | Change subscription plan/price |
-
-### Billing
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| GET | `/api/billing/invoices` | Get invoice history (`limit` 1-100) |
-| GET | `/api/billing/upcoming-invoice` | Get next invoice preview |
-| POST | `/api/billing/portal` | Create Stripe billing portal session |
-| GET | `/api/billing/usage` | Get feature usage summary |
-
-### Reports (plan-gated)
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| GET | `/api/reports/usage` | Daily API usage for 30 days. Needs a plan with `advanced_analytics` (403 on the free tier, 429 over the monthly limit); each call counts towards `api_calls` |
-
-### Products (Admin only)
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| GET | `/api/products` | List all products, including archived ones |
-| POST | `/api/products` | Create product with prices (`interval`: `month` or `year`) |
-| GET | `/api/products/{id}` | Get product details |
-| PUT | `/api/products/{id}` | Update product |
-| DELETE | `/api/products/{id}` | Archive product (kept as inactive if it has subscribers) |
-| POST | `/api/products/{id}/prices` | Add price to product |
-| POST | `/api/products/sync` | Sync products with Stripe (`direction`: `from` or `to`) |
-
-### Webhooks
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| POST | `/api/webhooks/stripe` | Stripe webhook handler (signature verified, duplicates skipped) |
-
-## Example Usage
-
-### Login
-```bash
-curl -X POST http://localhost:8000/api/auth/login \
-  -H "Content-Type: application/json" \
-  -d '{"email":"test@example.com","password":"password"}'
-```
-
-### Subscribe to a Plan
-```bash
-# Get plans
-curl http://localhost:8000/api/plans \
-  -H "Authorization: Bearer YOUR_TOKEN"
-
-# Create checkout session, then open checkout_url in your browser
-curl -X POST http://localhost:8000/api/subscriptions/checkout \
-  -H "Authorization: Bearer YOUR_TOKEN" \
-  -H "Content-Type: application/json" \
-  -d '{"price_id":"price_xxxxx"}'
-```
-
-On the Stripe page, pay with the test card `4242 4242 4242 4242` (any future date, any CVC). The webhook then stores the subscription within a few seconds.
-
-### Manage Subscription
-```bash
-# Check status
-curl http://localhost:8000/api/subscriptions \
-  -H "Authorization: Bearer YOUR_TOKEN"
-
-# Cancel
-curl -X POST http://localhost:8000/api/subscriptions/cancel \
-  -H "Authorization: Bearer YOUR_TOKEN"
-
-# Resume
-curl -X POST http://localhost:8000/api/subscriptions/resume \
-  -H "Authorization: Bearer YOUR_TOKEN"
-```
-
-## Swagger Documentation
-
-Access interactive API docs at: `http://localhost:8000/api/documentation`
-
-## Testing
+## Running tests
 
 ```bash
-vendor/bin/pest            # run the test suite
-vendor/bin/pint --test     # check code style
+vendor/bin/pest            # 147 tests
+vendor/bin/pint --test     # code style check
 ```
 
-- The tests use an in-memory SQLite database (the `pdo_sqlite` extension must be enabled) and need no `.env` file, database server or Stripe keys.
-- `StripeService` is replaced with a mock in every test, so no request ever reaches Stripe.
-- Webhook tests sign their payloads the same way Stripe does, so the real signature check runs.
+The suite runs real migrations on an in-memory SQLite database and needs no `.env` file, database server or Stripe keys. All Stripe access goes through one class, `StripeService`, which every test replaces with a mock. A test fails if it makes a Stripe call it did not declare.
 
-GitHub Actions runs the style check and the tests on PHP 8.3 and 8.4 for every push and pull request (`.github/workflows/ci.yml`).
+Webhook tests sign their payloads the way Stripe does, so the real signature check runs. A few unit tests drive the real Stripe SDK against a fake HTTP client to check request headers, URLs and pagination.
 
-## Useful Commands
+The tests cover:
+- webhook signatures
+- duplicate and out-of-order events
+- authentication and admin authorisation
+- checkout rules
+- cancel, resume and change plan
+- billing input validation
+- feature gating and usage limits
+- product sync
+- migrations
+- the model and service logic underneath
 
-```bash
-# Sync products from Stripe to local DB
-php artisan stripe:sync from
+CI runs the style check and the tests on PHP 8.3 and 8.4 for every push and pull request.
 
-# Create local products and prices that are missing in Stripe
-php artisan stripe:sync to
+## API overview
 
-# Test webhook configuration
-php artisan webhook:test
+All routes except register, login and the webhook need a bearer token. Full request and response details are in the Swagger UI at `/api/documentation` once the app is running.
 
-# List webhook jobs that failed
-php artisan queue:failed
+| Group | Method and path | Description |
+|-------|-----------------|-------------|
+| Auth | `POST /api/auth/register` | Create an account and receive a token |
+| | `POST /api/auth/login` | Receive a token |
+| | `POST /api/auth/logout` | Revoke the current token |
+| | `GET /api/auth/user` | Current user |
+| Plans | `GET /api/plans` | Active plans and their prices |
+| Subscriptions | `GET /api/subscriptions` | Current subscription |
+| | `GET /api/subscriptions/details` | Live details from Stripe, including the billing period |
+| | `POST /api/subscriptions/checkout` | Start Stripe Checkout for a price |
+| | `POST /api/subscriptions/cancel` | Cancel at the end of the billing period |
+| | `POST /api/subscriptions/resume` | Undo a scheduled cancellation |
+| | `POST /api/subscriptions/change-plan` | Switch to another price, with proration |
+| Billing | `GET /api/billing/invoices` | Invoice history (`limit` 1 to 100) |
+| | `GET /api/billing/upcoming-invoice` | Preview of the next invoice |
+| | `POST /api/billing/portal` | Stripe Billing Portal link |
+| | `GET /api/billing/usage` | Usage against the plan's limits |
+| Reports | `GET /api/reports/usage` | Daily API usage; needs a plan with `advanced_analytics` |
+| Products (admin) | `GET /api/products` | All plans, including archived ones |
+| | `POST /api/products` | Create a plan with prices |
+| | `GET /api/products/{id}` | One plan |
+| | `PUT /api/products/{id}` | Update name or description |
+| | `DELETE /api/products/{id}` | Archive a plan |
+| | `POST /api/products/{id}/prices` | Add a price |
+| | `POST /api/products/sync` | Sync with Stripe (`direction`: `from` or `to`) |
+| Webhooks | `POST /api/webhooks/stripe` | Stripe event receiver |
 
-# Run tests
-composer test
+## Project structure
 
-# Format code
-./vendor/bin/pint
-
-# Clear all caches
-php artisan optimize:clear
-
-# Fresh database reset
-php artisan migrate:fresh --seed
+```
+app/Domains/
+├── Auth/           # registration, login, logout
+├── Billing/        # Checkout sessions, Stripe customers, invoices, Billing Portal
+├── Subscription/   # subscriptions, plans and products, feature gating, usage tracking
+├── Webhooks/       # signature checks, event recording, queued jobs
+└── Shared/         # StripeService: the single entry point for Stripe API calls
 ```
 
-## Architecture
+Controllers, form requests, middleware and API resources live in `app/Http`, and models in `app/Models`.
 
-```
-app/
-├── Domains/
-│   ├── Auth/           # Authentication
-│   ├── Billing/        # Checkout, invoices, billing portal
-│   ├── Subscription/   # Plans, subscriptions, feature gating, usage
-│   ├── Webhooks/       # Webhook verification and queued jobs
-│   └── Shared/         # StripeService (all Stripe API calls)
-├── Enums/              # SubscriptionStatus, BillingInterval
-├── Http/
-│   ├── Controllers/
-│   ├── Middleware/
-│   ├── Requests/
-│   └── Resources/
-└── Models/
-tests/
-├── Feature/            # HTTP, webhook, sync and migration tests
-├── Unit/               # Models, usage limits, StripeService
-└── Support/            # Fake Stripe HTTP client
-```
+## Known limitations and roadmap
 
-## Troubleshooting
+Known limitations:
+- **Usage limits can be exceeded slightly under concurrency.** The usage check and the usage record are separate steps, so simultaneous requests near the limit can all pass.
+- **Duplicate subscriptions are only logged.** If a user still ends up with two paid subscriptions (a session paid in the moment before it is expired), both are stored and a warning is logged. Nothing cancels or refunds the extra one.
+- **Idempotency keys last 24 hours at Stripe.** A failed create retried within 24 hours with changed parameters is rejected by Stripe. A retry after 24 hours is no longer protected against duplicates.
+- **Unconfigured plans get no gated features.** A plan created through the API that is missing from `config/features.php` gets free-tier usage limits, but no features at all, not even the free-tier ones.
 
-**New routes give 404, or old behaviour comes back?**
-- Clear cached config and routes: `php artisan optimize:clear`
+Roadmap:
+- Metered, usage-based billing
+- Notifications for failed payments
+- Immediate cancellation through the API
+- A scheduled job that reconciles local subscriptions with Stripe
+- Trials and multi-currency prices
+- Admin roles beyond a single admin flag
+- Alerts when a user has more than one active subscription
 
-**Subscription not created after payment?**
-- Make sure the queue worker is running: `php artisan queue:work`
-- Check failed jobs: `php artisan queue:failed`
+## Licence
 
-**Webhook signature invalid (400)?**
-- Copy the webhook secret from the Stripe CLI output to `.env` as `STRIPE_WEBHOOK_SECRET`, then restart the server and queue worker
-
-**Checkout says the price is invalid?**
-- The local price has no Stripe ID yet. Run `php artisan stripe:sync to`
-
-**Login returns 429?**
-- Login is limited to 5 attempts a minute. Wait a minute.
-
-**Stripe CLI not recognized?**
-- Install Stripe CLI: https://stripe.com/docs/stripe-cli
-
-## License
-
-MIT
+Released under the [MIT Licence](LICENSE).
