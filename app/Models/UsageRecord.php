@@ -45,7 +45,7 @@ class UsageRecord extends Model
     {
         return $query->whereBetween('recorded_at', [
             now()->startOfMonth(),
-            now()->endOfMonth()
+            now()->endOfMonth(),
         ]);
     }
 }

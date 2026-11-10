@@ -2,14 +2,14 @@
 
 namespace App\Domains\Billing\Services;
 
-use App\Domains\Shared\Services\StripeService;
 use App\Domains\Billing\DTOs\CheckoutSessionData;
-use App\Models\User;
+use App\Domains\Shared\Services\StripeService;
 use App\Exceptions\SubscriptionException;
+use App\Models\User;
 
 /**
  * Service for handling billing operations
- * 
+ *
  * This service manages checkout sessions, payment processing,
  * and billing-related operations with Stripe.
  */
@@ -67,7 +67,7 @@ class BillingService
             try {
                 $customer = $this->stripeService->retrieveCustomer($previousCustomerId);
 
-                if (!$customer->isDeleted()) {
+                if (! $customer->isDeleted()) {
                     return $customer;
                 }
             } catch (\Stripe\Exception\InvalidRequestException) {
@@ -128,10 +128,10 @@ class BillingService
     public function generateCheckoutUrls(): array
     {
         $baseUrl = config('app.frontend_url');
-        
+
         return [
-            'success_url' => $baseUrl . '/subscription/success?session_id={CHECKOUT_SESSION_ID}',
-            'cancel_url' => $baseUrl . '/subscription/cancel'
+            'success_url' => $baseUrl.'/subscription/success?session_id={CHECKOUT_SESSION_ID}',
+            'cancel_url' => $baseUrl.'/subscription/cancel',
         ];
     }
 }

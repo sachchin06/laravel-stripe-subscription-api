@@ -2,8 +2,8 @@
 
 namespace App\Domains\Subscription\Services;
 
-use App\Models\User;
 use App\Models\UsageRecord;
+use App\Models\User;
 use Carbon\Carbon;
 
 /**
@@ -64,7 +64,7 @@ class UsageTrackingService
         $freeLimit = config("features.limits.free.{$feature}");
         $planLimits = config('features.limits.plans.'.$user->activeSubscription()?->plan->slug);
 
-        if (!is_array($planLimits) || !array_key_exists($feature, $planLimits)) {
+        if (! is_array($planLimits) || ! array_key_exists($feature, $planLimits)) {
             return $freeLimit;
         }
 
@@ -79,7 +79,7 @@ class UsageTrackingService
         foreach ($features as $feature) {
             $current = $this->getCurrentMonthUsage($user, $feature);
             $limit = $this->getUserLimit($user, $feature);
-            
+
             $summary[$feature] = [
                 'current' => $current,
                 'limit' => $limit,

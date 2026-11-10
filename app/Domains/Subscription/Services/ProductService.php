@@ -97,7 +97,7 @@ class ProductService
             $plan->delete();
         }
 
-        Log::info('Plan archived', ['plan_id' => $plan->id, 'deleted' => !$plan->exists]);
+        Log::info('Plan archived', ['plan_id' => $plan->id, 'deleted' => ! $plan->exists]);
 
         return true;
     }
@@ -127,7 +127,7 @@ class ProductService
 
             // Existing plans keep their slug. A new plan gets a free one, so a Stripe
             // product called "Basic" cannot collide with an unrelated local "basic" plan.
-            if (!$plan->exists) {
+            if (! $plan->exists) {
                 $plan->slug = $this->uniqueSlug($slug);
             }
 
@@ -143,7 +143,7 @@ class ProductService
 
                 $interval = BillingInterval::tryFrom($stripePrice->recurring->interval);
 
-                if (!$interval) {
+                if (! $interval) {
                     continue; // Daily and weekly prices are not offered by this app.
                 }
 
@@ -155,7 +155,7 @@ class ProductService
                         ->where('price', $stripePrice->unit_amount)
                         ->where('currency', $stripePrice->currency)
                         ->first()
-                    ?? new PlanPrice();
+                    ?? new PlanPrice;
 
                 $price->fill([
                     'plan_id' => $plan->id,
@@ -181,7 +181,7 @@ class ProductService
     {
         return Plan::where('stripe_product_id', $stripeProductId)->first()
             ?? Plan::where('slug', $slug)->whereNull('stripe_product_id')->first()
-            ?? new Plan();
+            ?? new Plan;
     }
 
     private function uniqueSlug(string $slug): string
@@ -221,7 +221,7 @@ class ProductService
         $created = ['products' => 0, 'prices' => 0];
 
         try {
-            if (!$plan->stripe_product_id) {
+            if (! $plan->stripe_product_id) {
                 $product = $this->stripeService->createProduct(
                     array_filter([
                         'name' => $plan->name,

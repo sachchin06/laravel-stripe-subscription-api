@@ -16,7 +16,7 @@ class InvoiceService
 
     public function getInvoiceHistory(User $user, int $limit = 10): array
     {
-        if (!$user->stripe_customer_id) {
+        if (! $user->stripe_customer_id) {
             return [];
         }
 
@@ -39,7 +39,7 @@ class InvoiceService
 
     public function createBillingPortalSession(User $user, string $returnUrl): ?string
     {
-        if (!$user->stripe_customer_id) {
+        if (! $user->stripe_customer_id) {
             return null;
         }
 
@@ -50,7 +50,7 @@ class InvoiceService
 
     public function getUpcomingInvoice(User $user): ?array
     {
-        if (!$user->stripe_customer_id) {
+        if (! $user->stripe_customer_id) {
             return null;
         }
 
@@ -59,7 +59,7 @@ class InvoiceService
             $user->activeSubscription()?->stripe_subscription_id
         );
 
-        if (!$invoice) {
+        if (! $invoice) {
             return null;
         }
 

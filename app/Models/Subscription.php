@@ -69,7 +69,7 @@ class Subscription extends Model
 
     public function gracePeriodDaysRemaining(): int
     {
-        if (!$this->isOnGracePeriod()) {
+        if (! $this->isOnGracePeriod()) {
             return 0;
         }
 

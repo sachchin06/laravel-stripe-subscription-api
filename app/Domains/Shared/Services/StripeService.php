@@ -7,7 +7,7 @@ use Stripe\StripeClient;
 
 /**
  * Centralised Stripe service for all Stripe API interactions
- * 
+ *
  * This service provides a single point of access to Stripe functionality
  * and ensures consistent configuration across the application.
  */
@@ -171,7 +171,7 @@ class StripeService
     public function retrieveSubscription(string $subscriptionId): \Stripe\Subscription
     {
         return $this->stripe->subscriptions->retrieve($subscriptionId, [
-            'expand' => ['latest_invoice', 'default_payment_method']
+            'expand' => ['latest_invoice', 'default_payment_method'],
         ]);
     }
 
@@ -188,7 +188,7 @@ class StripeService
     public function cancelSubscriptionAtPeriodEnd(string $subscriptionId): \Stripe\Subscription
     {
         return $this->stripe->subscriptions->update($subscriptionId, [
-            'cancel_at_period_end' => true
+            'cancel_at_period_end' => true,
         ]);
     }
 
@@ -198,7 +198,7 @@ class StripeService
     public function resumeSubscription(string $subscriptionId): \Stripe\Subscription
     {
         return $this->stripe->subscriptions->update($subscriptionId, [
-            'cancel_at_period_end' => false
+            'cancel_at_period_end' => false,
         ]);
     }
 
@@ -212,7 +212,7 @@ class StripeService
                 [
                     'id' => $itemId,
                     'price' => $newPriceId,
-                ]
+                ],
             ],
             'proration_behavior' => 'create_prorations',
         ]);

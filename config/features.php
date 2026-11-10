@@ -23,7 +23,7 @@ return [
             'advanced_analytics',
             'email_support',
         ],
-        
+
         'pro' => [
             'basic_api_access',
             'profile_management',
@@ -42,14 +42,14 @@ return [
             'storage_mb' => 50,
             'team_members' => 1,
         ],
-        
+
         'plans' => [
             'basic' => [
                 'api_calls' => 10000,
                 'storage_mb' => 1000,
                 'team_members' => 5,
             ],
-            
+
             'pro' => [
                 'api_calls' => null, // unlimited
                 'storage_mb' => 10000,

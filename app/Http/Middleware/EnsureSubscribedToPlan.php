@@ -18,14 +18,14 @@ class EnsureSubscribedToPlan
 
     /**
      * Handle an incoming request
-     * 
-     * @param string $planSlug The plan slug to check subscription for
+     *
+     * @param  string  $planSlug  The plan slug to check subscription for
      */
     public function handle(Request $request, Closure $next, string $planSlug): Response
     {
         $user = $request->user();
 
-        if (!$user) {
+        if (! $user) {
             return response()->json([
                 'message' => 'Authentication required',
             ], 401);
@@ -33,7 +33,7 @@ class EnsureSubscribedToPlan
 
         $subscription = $this->subscriptionManager->getActiveSubscription($user);
 
-        if (!$subscription || $subscription->plan->slug !== $planSlug) {
+        if (! $subscription || $subscription->plan->slug !== $planSlug) {
             return response()->json([
                 'message' => "This feature requires a {$planSlug} subscription",
                 'required_plan' => $planSlug,

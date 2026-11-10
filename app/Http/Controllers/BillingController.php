@@ -10,7 +10,7 @@ use Illuminate\Http\Request;
 
 /**
  * Controller for billing-related operations
- * 
+ *
  * @OA\Tag(
  *     name="Billing",
  *     description="Billing and invoice management endpoints"
@@ -29,21 +29,28 @@ class BillingController extends Controller
      *     summary="Get user's invoice history",
      *     tags={"Billing"},
      *     security={{"sanctum":{}}},
+     *
      *     @OA\Parameter(
      *         name="limit",
      *         in="query",
      *         description="Number of invoices to retrieve (default: 10, max: 100)",
      *         required=false,
+     *
      *         @OA\Schema(type="integer", minimum=1, maximum=100, default=10)
      *     ),
+     *
      *     @OA\Response(
      *         response=200,
      *         description="Invoice history retrieved successfully",
+     *
      *         @OA\JsonContent(
+     *
      *             @OA\Property(
      *                 property="data",
      *                 type="array",
+     *
      *                 @OA\Items(
+     *
      *                     @OA\Property(property="id", type="string", example="in_1234567890"),
      *                     @OA\Property(property="number", type="string", example="INV-2024-001"),
      *                     @OA\Property(property="amount_paid", type="integer", example=2999),
@@ -59,6 +66,7 @@ class BillingController extends Controller
      *             )
      *         )
      *     ),
+     *
      *     @OA\Response(
      *         response=401,
      *         description="Unauthenticated"
@@ -87,14 +95,19 @@ class BillingController extends Controller
      *     summary="Get upcoming invoice preview",
      *     tags={"Billing"},
      *     security={{"sanctum":{}}},
+     *
      *     @OA\Response(
      *         response=200,
      *         description="Upcoming invoice retrieved successfully",
+     *
      *         @OA\JsonContent(
+     *
      *             @OA\Property(
      *                 property="data",
      *                 oneOf={
+     *
      *                     @OA\Schema(
+     *
      *                         @OA\Property(property="amount_due", type="integer", example=2999),
      *                         @OA\Property(property="currency", type="string", example="USD"),
      *                         @OA\Property(property="period_start", type="integer", example=1640995200),
@@ -102,11 +115,13 @@ class BillingController extends Controller
      *                         @OA\Property(property="next_payment_attempt", type="integer", example=1643673600),
      *                         @OA\Property(property="description", type="string", example="Pro Plan - Monthly")
      *                     ),
+     *
      *                     @OA\Schema(type="null")
      *                 }
      *             )
      *         )
      *     ),
+     *
      *     @OA\Response(
      *         response=401,
      *         description="Unauthenticated"
@@ -128,9 +143,12 @@ class BillingController extends Controller
      *     summary="Create billing portal session",
      *     tags={"Billing"},
      *     security={{"sanctum":{}}},
+     *
      *     @OA\RequestBody(
      *         required=false,
+     *
      *         @OA\JsonContent(
+     *
      *             @OA\Property(
      *                 property="return_url",
      *                 type="string",
@@ -140,10 +158,13 @@ class BillingController extends Controller
      *             )
      *         )
      *     ),
+     *
      *     @OA\Response(
      *         response=200,
      *         description="Billing portal session created successfully",
+     *
      *         @OA\JsonContent(
+     *
      *             @OA\Property(
      *                 property="portal_url",
      *                 type="string",
@@ -153,13 +174,17 @@ class BillingController extends Controller
      *             )
      *         )
      *     ),
+     *
      *     @OA\Response(
      *         response=400,
      *         description="Unable to create billing portal session",
+     *
      *         @OA\JsonContent(
+     *
      *             @OA\Property(property="message", type="string", example="Unable to create billing portal session")
      *         )
      *     ),
+     *
      *     @OA\Response(
      *         response=401,
      *         description="Unauthenticated"
@@ -173,7 +198,7 @@ class BillingController extends Controller
             $request->returnUrl()
         );
 
-        if (!$portalUrl) {
+        if (! $portalUrl) {
             return response()->json([
                 'message' => 'Unable to create billing portal session',
             ], 400);
@@ -190,10 +215,13 @@ class BillingController extends Controller
      *     summary="Get user's usage summary",
      *     tags={"Billing"},
      *     security={{"sanctum":{}}},
+     *
      *     @OA\Response(
      *         response=200,
      *         description="Usage summary retrieved successfully",
+     *
      *         @OA\JsonContent(
+     *
      *             @OA\Property(
      *                 property="data",
      *                 type="object",
@@ -224,6 +252,7 @@ class BillingController extends Controller
      *             )
      *         )
      *     ),
+     *
      *     @OA\Response(
      *         response=401,
      *         description="Unauthenticated"

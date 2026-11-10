@@ -18,14 +18,14 @@ class AuthenticateUserAction
 
     /**
      * Execute user authentication
-     * 
+     *
      * @throws ValidationException
      */
     public function execute(LoginData $data): User
     {
         $user = $this->authService->getUserByEmail($data->email);
 
-        if (!$user || !$this->authService->verifyPassword($user, $data->password)) {
+        if (! $user || ! $this->authService->verifyPassword($user, $data->password)) {
             throw ValidationException::withMessages([
                 'email' => ['The provided credentials are incorrect.'],
             ]);

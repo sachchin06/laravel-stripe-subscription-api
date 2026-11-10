@@ -21,7 +21,7 @@ class BillingPortalRequest extends FormRequest
                 // Without this check the portal's "return" link could send users to
                 // any site chosen by whoever made the request (an open redirect).
                 function (string $attribute, mixed $value, Closure $fail) {
-                    if (!in_array(parse_url($value, PHP_URL_HOST), $this->allowedHosts(), true)) {
+                    if (! in_array(parse_url($value, PHP_URL_HOST), $this->allowedHosts(), true)) {
                         $fail('The return URL must point to this application or its frontend.');
                     }
                 },

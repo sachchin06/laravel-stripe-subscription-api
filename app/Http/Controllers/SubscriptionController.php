@@ -3,10 +3,10 @@
 namespace App\Http\Controllers;
 
 use App\Domains\Billing\Actions\CreateCheckoutSessionAction;
+use App\Domains\Shared\Services\StripeService;
 use App\Domains\Subscription\Actions\CancelSubscriptionAction;
 use App\Domains\Subscription\Services\PlanService;
 use App\Domains\Subscription\Services\SubscriptionManager;
-use App\Domains\Shared\Services\StripeService;
 use App\Exceptions\SubscriptionException;
 use App\Http\Requests\Subscription\ChangePlanRequest;
 use App\Http\Requests\Subscription\CreateCheckoutRequest;
@@ -18,7 +18,7 @@ use Illuminate\Http\Request;
 
 /**
  * Controller for subscription management endpoints
- * 
+ *
  * This controller provides a thin HTTP layer that coordinates
  * subscription operations through domain actions and services.
  */
@@ -38,17 +38,22 @@ class SubscriptionController extends Controller
      *     summary="Get all subscription plans",
      *     tags={"Plans"},
      *     security={{"sanctum":{}}},
+     *
      *     @OA\Response(
      *         response=200,
      *         description="List of subscription plans",
+     *
      *         @OA\JsonContent(
+     *
      *             @OA\Property(
      *                 property="data",
      *                 type="array",
+     *
      *                 @OA\Items(ref="#/components/schemas/Plan")
      *             )
      *         )
      *     ),
+     *
      *     @OA\Response(
      *         response=401,
      *         description="Unauthenticated"
@@ -70,27 +75,37 @@ class SubscriptionController extends Controller
      *     summary="Create Stripe checkout session",
      *     tags={"Subscriptions"},
      *     security={{"sanctum":{}}},
+     *
      *     @OA\RequestBody(
      *         required=true,
+     *
      *         @OA\JsonContent(
      *             required={"price_id"},
+     *
      *             @OA\Property(property="price_id", type="string", example="price_1234567890", description="Stripe price ID from the plans list")
      *         )
      *     ),
+     *
      *     @OA\Response(
      *         response=200,
      *         description="Checkout session created",
+     *
      *         @OA\JsonContent(
+     *
      *             @OA\Property(property="checkout_url", type="string", example="https://checkout.stripe.com/c/pay/cs_test_...")
      *         )
      *     ),
+     *
      *     @OA\Response(
      *         response=409,
      *         description="User already has an active subscription",
+     *
      *         @OA\JsonContent(
+     *
      *             @OA\Property(property="message", type="string", example="You already have an active subscription. To switch plans, use POST /api/subscriptions/change-plan.")
      *         )
      *     ),
+     *
      *     @OA\Response(
      *         response=401,
      *         description="Unauthenticated"
@@ -119,19 +134,24 @@ class SubscriptionController extends Controller
      *     summary="Get user's subscription status",
      *     tags={"Subscriptions"},
      *     security={{"sanctum":{}}},
+     *
      *     @OA\Response(
      *         response=200,
      *         description="Subscription details",
+     *
      *         @OA\JsonContent(
+     *
      *             @OA\Property(
      *                 property="data",
      *                 oneOf={
+     *
      *                     @OA\Schema(ref="#/components/schemas/Subscription"),
      *                     @OA\Schema(type="null")
      *                 }
      *             )
      *         )
      *     ),
+     *
      *     @OA\Response(
      *         response=401,
      *         description="Unauthenticated"
@@ -142,7 +162,7 @@ class SubscriptionController extends Controller
     {
         $subscription = $this->subscriptionManager->getActiveSubscription($request->user());
 
-        if (!$subscription) {
+        if (! $subscription) {
             return response()->json([
                 'data' => null,
             ]);
@@ -159,20 +179,27 @@ class SubscriptionController extends Controller
      *     summary="Cancel user's subscription",
      *     tags={"Subscriptions"},
      *     security={{"sanctum":{}}},
+     *
      *     @OA\Response(
      *         response=200,
      *         description="Subscription cancelled",
+     *
      *         @OA\JsonContent(
+     *
      *             @OA\Property(property="message", type="string", example="Subscription will be cancelled at the end of the billing period")
      *         )
      *     ),
+     *
      *     @OA\Response(
      *         response=404,
      *         description="No subscription found",
+     *
      *         @OA\JsonContent(
+     *
      *             @OA\Property(property="message", type="string", example="No active subscription found")
      *         )
      *     ),
+     *
      *     @OA\Response(
      *         response=401,
      *         description="Unauthenticated"
@@ -183,7 +210,7 @@ class SubscriptionController extends Controller
     {
         $subscription = $this->subscriptionManager->getActiveSubscription($request->user());
 
-        if (!$subscription) {
+        if (! $subscription) {
             throw SubscriptionException::notFound();
         }
 
@@ -200,14 +227,18 @@ class SubscriptionController extends Controller
      *     summary="Resume a cancelled subscription",
      *     tags={"Subscriptions"},
      *     security={{"sanctum":{}}},
+     *
      *     @OA\Response(
      *         response=200,
      *         description="Subscription resumed",
+     *
      *         @OA\JsonContent(
+     *
      *             @OA\Property(property="message", type="string", example="Subscription resumed successfully"),
      *             @OA\Property(property="data", ref="#/components/schemas/Subscription")
      *         )
      *     ),
+     *
      *     @OA\Response(response=404, description="No subscription found"),
      *     @OA\Response(response=400, description="Subscription cannot be resumed")
      * )
@@ -216,11 +247,11 @@ class SubscriptionController extends Controller
     {
         $subscription = $this->subscriptionManager->getActiveSubscription($request->user());
 
-        if (!$subscription) {
+        if (! $subscription) {
             throw SubscriptionException::notFound();
         }
 
-        if (!$subscription->ends_at) {
+        if (! $subscription->ends_at) {
             return response()->json([
                 'message' => 'Subscription is not scheduled for cancellation',
             ], 400);
@@ -242,21 +273,28 @@ class SubscriptionController extends Controller
      *     summary="Change subscription plan/price",
      *     tags={"Subscriptions"},
      *     security={{"sanctum":{}}},
+     *
      *     @OA\RequestBody(
      *         required=true,
+     *
      *         @OA\JsonContent(
      *             required={"price_id"},
+     *
      *             @OA\Property(property="price_id", type="string", example="price_1234567890", description="New Stripe price ID")
      *         )
      *     ),
+     *
      *     @OA\Response(
      *         response=200,
      *         description="Plan changed successfully",
+     *
      *         @OA\JsonContent(
+     *
      *             @OA\Property(property="message", type="string"),
      *             @OA\Property(property="data", ref="#/components/schemas/Subscription")
      *         )
      *     ),
+     *
      *     @OA\Response(response=404, description="No subscription found"),
      *     @OA\Response(response=422, description="Invalid price ID, or the plan is archived")
      * )
@@ -265,14 +303,14 @@ class SubscriptionController extends Controller
     {
         $subscription = $this->subscriptionManager->getActiveSubscription($request->user());
 
-        if (!$subscription) {
+        if (! $subscription) {
             throw SubscriptionException::notFound();
         }
 
         $newPrice = PlanPrice::where('stripe_price_id', $request->validated('price_id'))->firstOrFail();
 
         // Moving onto an archived plan counts as joining it, which is closed.
-        if (!$newPrice->plan->is_active) {
+        if (! $newPrice->plan->is_active) {
             throw SubscriptionException::planNotAvailable();
         }
 
@@ -298,10 +336,13 @@ class SubscriptionController extends Controller
      *     summary="Get detailed subscription info from Stripe",
      *     tags={"Subscriptions"},
      *     security={{"sanctum":{}}},
+     *
      *     @OA\Response(
      *         response=200,
      *         description="Subscription details from Stripe",
+     *
      *         @OA\JsonContent(
+     *
      *             @OA\Property(property="data", type="object",
      *                 @OA\Property(property="id", type="string"),
      *                 @OA\Property(property="status", type="string"),
@@ -315,6 +356,7 @@ class SubscriptionController extends Controller
      *             )
      *         )
      *     ),
+     *
      *     @OA\Response(response=404, description="No subscription found")
      * )
      */
@@ -322,7 +364,7 @@ class SubscriptionController extends Controller
     {
         $subscription = $this->subscriptionManager->getActiveSubscription($request->user());
 
-        if (!$subscription || !$subscription->stripe_subscription_id) {
+        if (! $subscription || ! $subscription->stripe_subscription_id) {
             return response()->json([
                 'data' => null,
             ]);

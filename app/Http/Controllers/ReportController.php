@@ -32,10 +32,13 @@ class ReportController extends Controller
      *     summary="Daily API usage for the last 30 days (requires a plan with advanced_analytics)",
      *     tags={"Reports"},
      *     security={{"sanctum":{}}},
+     *
      *     @OA\Response(
      *         response=200,
      *         description="Usage report",
+     *
      *         @OA\JsonContent(
+     *
      *             @OA\Property(property="data", type="object",
      *                 @OA\Property(property="feature", type="string", example="api_calls"),
      *                 @OA\Property(property="daily", type="object", example={"2026-11-09": 12, "2026-11-10": 4}),
@@ -44,6 +47,7 @@ class ReportController extends Controller
      *             )
      *         )
      *     ),
+     *
      *     @OA\Response(response=401, description="Unauthenticated"),
      *     @OA\Response(response=403, description="Current plan does not include advanced_analytics"),
      *     @OA\Response(response=429, description="Monthly api_calls limit reached")

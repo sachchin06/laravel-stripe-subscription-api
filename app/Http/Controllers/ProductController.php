@@ -2,8 +2,8 @@
 
 namespace App\Http\Controllers;
 
-use App\Domains\Subscription\Services\ProductService;
 use App\Domains\Subscription\Services\PlanService;
+use App\Domains\Subscription\Services\ProductService;
 use App\Enums\BillingInterval;
 use App\Http\Resources\PlanResource;
 use App\Models\Plan;
@@ -13,7 +13,7 @@ use Illuminate\Validation\Rule;
 
 /**
  * Controller for product/plan management (admin operations)
- * 
+ *
  * @OA\Tag(
  *     name="Products",
  *     description="Product and plan management endpoints"
@@ -32,10 +32,13 @@ class ProductController extends Controller
      *     summary="List all products/plans",
      *     tags={"Products"},
      *     security={{"sanctum":{}}},
+     *
      *     @OA\Response(
      *         response=200,
      *         description="List of products",
+     *
      *         @OA\JsonContent(
+     *
      *             @OA\Property(property="data", type="array", @OA\Items(ref="#/components/schemas/Plan"))
      *         )
      *     )
@@ -56,17 +59,22 @@ class ProductController extends Controller
      *     summary="Create a new product/plan with prices",
      *     tags={"Products"},
      *     security={{"sanctum":{}}},
+     *
      *     @OA\RequestBody(
      *         required=true,
+     *
      *         @OA\JsonContent(
      *             required={"name", "prices"},
+     *
      *             @OA\Property(property="name", type="string", example="Enterprise"),
      *             @OA\Property(property="slug", type="string", example="enterprise"),
      *             @OA\Property(property="description", type="string", example="Enterprise plan with all features"),
      *             @OA\Property(
      *                 property="prices",
      *                 type="array",
+     *
      *                 @OA\Items(
+     *
      *                     @OA\Property(property="interval", type="string", enum={"month", "year"}),
      *                     @OA\Property(property="price", type="integer", description="Price in cents", example=9900),
      *                     @OA\Property(property="currency", type="string", example="usd")
@@ -74,14 +82,18 @@ class ProductController extends Controller
      *             )
      *         )
      *     ),
+     *
      *     @OA\Response(
      *         response=201,
      *         description="Product created successfully",
+     *
      *         @OA\JsonContent(
+     *
      *             @OA\Property(property="data", ref="#/components/schemas/Plan"),
      *             @OA\Property(property="message", type="string", example="Product created successfully")
      *         )
      *     ),
+     *
      *     @OA\Response(response=422, description="Validation error"),
      *     @OA\Response(response=502, description="Payment provider error")
      * )
@@ -112,17 +124,22 @@ class ProductController extends Controller
      *     summary="Get a specific product/plan",
      *     tags={"Products"},
      *     security={{"sanctum":{}}},
+     *
      *     @OA\Parameter(
      *         name="id",
      *         in="path",
      *         required=true,
+     *
      *         @OA\Schema(type="integer")
      *     ),
+     *
      *     @OA\Response(
      *         response=200,
      *         description="Product details",
+     *
      *         @OA\JsonContent(@OA\Property(property="data", ref="#/components/schemas/Plan"))
      *     ),
+     *
      *     @OA\Response(response=404, description="Product not found")
      * )
      */
@@ -139,27 +156,36 @@ class ProductController extends Controller
      *     summary="Update a product/plan",
      *     tags={"Products"},
      *     security={{"sanctum":{}}},
+     *
      *     @OA\Parameter(
      *         name="id",
      *         in="path",
      *         required=true,
+     *
      *         @OA\Schema(type="integer")
      *     ),
+     *
      *     @OA\RequestBody(
      *         required=true,
+     *
      *         @OA\JsonContent(
+     *
      *             @OA\Property(property="name", type="string", example="Enterprise Plus"),
      *             @OA\Property(property="description", type="string", example="Updated description")
      *         )
      *     ),
+     *
      *     @OA\Response(
      *         response=200,
      *         description="Product updated successfully",
+     *
      *         @OA\JsonContent(
+     *
      *             @OA\Property(property="data", ref="#/components/schemas/Plan"),
      *             @OA\Property(property="message", type="string")
      *         )
      *     ),
+     *
      *     @OA\Response(response=404, description="Product not found"),
      *     @OA\Response(response=502, description="Payment provider error")
      * )
@@ -185,17 +211,22 @@ class ProductController extends Controller
      *     summary="Archive a product/plan",
      *     tags={"Products"},
      *     security={{"sanctum":{}}},
+     *
      *     @OA\Parameter(
      *         name="id",
      *         in="path",
      *         required=true,
+     *
      *         @OA\Schema(type="integer")
      *     ),
+     *
      *     @OA\Response(
      *         response=200,
      *         description="Product archived successfully",
+     *
      *         @OA\JsonContent(@OA\Property(property="message", type="string"))
      *     ),
+     *
      *     @OA\Response(response=404, description="Product not found"),
      *     @OA\Response(response=502, description="Payment provider error")
      * )
@@ -215,29 +246,38 @@ class ProductController extends Controller
      *     summary="Add a new price to a product",
      *     tags={"Products"},
      *     security={{"sanctum":{}}},
+     *
      *     @OA\Parameter(
      *         name="id",
      *         in="path",
      *         required=true,
+     *
      *         @OA\Schema(type="integer")
      *     ),
+     *
      *     @OA\RequestBody(
      *         required=true,
+     *
      *         @OA\JsonContent(
      *             required={"interval", "price"},
+     *
      *             @OA\Property(property="interval", type="string", enum={"month", "year"}),
      *             @OA\Property(property="price", type="integer", description="Price in cents", example=4900),
      *             @OA\Property(property="currency", type="string", example="usd")
      *         )
      *     ),
+     *
      *     @OA\Response(
      *         response=201,
      *         description="Price added successfully",
+     *
      *         @OA\JsonContent(
+     *
      *             @OA\Property(property="data", ref="#/components/schemas/PlanPrice"),
      *             @OA\Property(property="message", type="string")
      *         )
      *     ),
+     *
      *     @OA\Response(response=404, description="Product not found"),
      *     @OA\Response(response=502, description="Payment provider error")
      * )
@@ -264,16 +304,22 @@ class ProductController extends Controller
      *     summary="Sync products from Stripe",
      *     tags={"Products"},
      *     security={{"sanctum":{}}},
+     *
      *     @OA\RequestBody(
      *         required=false,
+     *
      *         @OA\JsonContent(
+     *
      *             @OA\Property(property="direction", type="string", enum={"from", "to"}, default="from")
      *         )
      *     ),
+     *
      *     @OA\Response(
      *         response=200,
      *         description="Sync completed",
+     *
      *         @OA\JsonContent(
+     *
      *             @OA\Property(property="message", type="string"),
      *             @OA\Property(property="synced", type="object",
      *                 @OA\Property(property="products", type="integer"),
@@ -281,6 +327,7 @@ class ProductController extends Controller
      *             )
      *         )
      *     ),
+     *
      *     @OA\Response(response=502, description="Payment provider error")
      * )
      */

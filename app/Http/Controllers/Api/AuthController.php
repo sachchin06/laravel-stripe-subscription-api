@@ -17,7 +17,7 @@ use Illuminate\Http\Request;
 
 /**
  * Controller for authentication endpoints
- * 
+ *
  * This controller provides a thin HTTP layer for authentication operations,
  * delegating business logic to domain actions and services.
  */
@@ -35,28 +35,37 @@ class AuthController extends Controller
      *     path="/api/auth/register",
      *     summary="Register a new user",
      *     tags={"Authentication"},
+     *
      *     @OA\RequestBody(
      *         required=true,
+     *
      *         @OA\JsonContent(
      *             required={"name","email","password","password_confirmation"},
+     *
      *             @OA\Property(property="name", type="string", example="John Doe"),
      *             @OA\Property(property="email", type="string", format="email", example="john@example.com"),
      *             @OA\Property(property="password", type="string", format="password", example="password123"),
      *             @OA\Property(property="password_confirmation", type="string", format="password", example="password123")
      *         )
      *     ),
+     *
      *     @OA\Response(
      *         response=201,
      *         description="User registered successfully",
+     *
      *         @OA\JsonContent(
+     *
      *             @OA\Property(property="user", ref="#/components/schemas/User"),
      *             @OA\Property(property="token", type="string", example="1|abcdef123456...")
      *         )
      *     ),
+     *
      *     @OA\Response(
      *         response=422,
      *         description="Validation error",
+     *
      *         @OA\JsonContent(
+     *
      *             @OA\Property(property="message", type="string", example="The email has already been taken."),
      *             @OA\Property(property="errors", type="object")
      *         )
@@ -85,26 +94,35 @@ class AuthController extends Controller
      *     path="/api/auth/login",
      *     summary="Login user",
      *     tags={"Authentication"},
+     *
      *     @OA\RequestBody(
      *         required=true,
+     *
      *         @OA\JsonContent(
      *             required={"email","password"},
+     *
      *             @OA\Property(property="email", type="string", format="email", example="john@example.com"),
      *             @OA\Property(property="password", type="string", format="password", example="password123")
      *         )
      *     ),
+     *
      *     @OA\Response(
      *         response=200,
      *         description="Login successful",
+     *
      *         @OA\JsonContent(
+     *
      *             @OA\Property(property="user", ref="#/components/schemas/User"),
      *             @OA\Property(property="token", type="string", example="2|abcdef123456...")
      *         )
      *     ),
+     *
      *     @OA\Response(
      *         response=422,
      *         description="Invalid credentials",
+     *
      *         @OA\JsonContent(
+     *
      *             @OA\Property(property="message", type="string", example="The provided credentials are incorrect."),
      *             @OA\Property(property="errors", type="object")
      *         )
@@ -133,17 +151,23 @@ class AuthController extends Controller
      *     summary="Logout user",
      *     tags={"Authentication"},
      *     security={{"sanctum":{}}},
+     *
      *     @OA\Response(
      *         response=200,
      *         description="Logout successful",
+     *
      *         @OA\JsonContent(
+     *
      *             @OA\Property(property="message", type="string", example="Logged out successfully")
      *         )
      *     ),
+     *
      *     @OA\Response(
      *         response=401,
      *         description="Unauthenticated",
+     *
      *         @OA\JsonContent(
+     *
      *             @OA\Property(property="message", type="string", example="Unauthenticated.")
      *         )
      *     )
@@ -164,11 +188,14 @@ class AuthController extends Controller
      *     summary="Get authenticated user",
      *     tags={"Authentication"},
      *     security={{"sanctum":{}}},
+     *
      *     @OA\Response(
      *         response=200,
      *         description="User details",
+     *
      *         @OA\JsonContent(ref="#/components/schemas/User")
      *     ),
+     *
      *     @OA\Response(
      *         response=401,
      *         description="Unauthenticated"

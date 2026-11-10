@@ -48,9 +48,9 @@ readonly class SubscriptionData extends BaseDTO
             stripeSubscriptionId: $subscription->id,
             stripeCustomerId: $subscription->customer,
             stripeStatus: $subscription->status,
-            trialEndsAt: $subscription->trial_end ? 
+            trialEndsAt: $subscription->trial_end ?
                 Carbon::createFromTimestamp($subscription->trial_end) : null,
-            endsAt: $subscription->cancel_at ? 
+            endsAt: $subscription->cancel_at ?
                 Carbon::createFromTimestamp($subscription->cancel_at) : null
         );
     }

@@ -23,11 +23,11 @@ class CreateCheckoutSessionAction
     {
         $planPrice = $this->planService->findPriceByStripeId($stripePriceId);
 
-        if (!$planPrice) {
+        if (! $planPrice) {
             throw SubscriptionException::invalidPlanPrice();
         }
 
-        if (!$planPrice->plan->is_active) {
+        if (! $planPrice->plan->is_active) {
             throw SubscriptionException::planNotAvailable();
         }
 

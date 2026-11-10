@@ -7,7 +7,7 @@ use App\Models\Subscription;
 
 /**
  * Action for cancelling a subscription
- * 
+ *
  * This action coordinates the cancellation process through
  * the SubscriptionManager service.
  */

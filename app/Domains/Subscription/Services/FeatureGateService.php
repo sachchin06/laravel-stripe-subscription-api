@@ -2,12 +2,12 @@
 
 namespace App\Domains\Subscription\Services;
 
-use App\Models\User;
 use App\Models\Plan;
+use App\Models\User;
 
 /**
  * Service for managing feature access based on subscription plans
- * 
+ *
  * This service provides a centralised way to check feature access
  * and enforce plan-based limitations.
  */
@@ -20,8 +20,8 @@ class FeatureGateService
     public function hasFeatureAccess(User $user, string $featureSlug): bool
     {
         $subscription = $user->activeSubscription();
-        
-        if (!$subscription || !$subscription->isActive()) {
+
+        if (! $subscription || ! $subscription->isActive()) {
             return $this->isFeatureFree($featureSlug);
         }
 
@@ -56,12 +56,14 @@ class FeatureGateService
     private function isFeatureFree(string $featureSlug): bool
     {
         $freeFeatures = config('features.free', []);
+
         return in_array($featureSlug, $freeFeatures);
     }
 
     private function planHasFeature(Plan $plan, string $featureSlug): bool
     {
         $planFeatures = config("features.plans.{$plan->slug}", []);
+
         return in_array($featureSlug, $planFeatures);
     }
 }

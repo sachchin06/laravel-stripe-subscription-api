@@ -17,8 +17,9 @@ class StripeSyncCommand extends Command
     {
         $direction = $this->argument('direction');
 
-        if (!in_array($direction, ['from', 'to'])) {
+        if (! in_array($direction, ['from', 'to'])) {
             $this->error('Invalid direction. Use "from" or "to".');
+
             return self::FAILURE;
         }
 
@@ -49,7 +50,8 @@ class StripeSyncCommand extends Command
             return self::SUCCESS;
 
         } catch (\Exception $e) {
-            $this->error('Sync failed: ' . $e->getMessage());
+            $this->error('Sync failed: '.$e->getMessage());
+
             return self::FAILURE;
         }
     }

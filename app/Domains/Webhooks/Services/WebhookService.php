@@ -4,10 +4,10 @@ namespace App\Domains\Webhooks\Services;
 
 use App\Domains\Shared\Services\StripeService;
 use App\Domains\Webhooks\Jobs\HandleCheckoutSessionCompleted;
-use App\Domains\Webhooks\Jobs\HandleSubscriptionUpdated;
-use App\Domains\Webhooks\Jobs\HandleSubscriptionDeleted;
 use App\Domains\Webhooks\Jobs\HandleInvoicePaid;
 use App\Domains\Webhooks\Jobs\HandleInvoicePaymentFailed;
+use App\Domains\Webhooks\Jobs\HandleSubscriptionDeleted;
+use App\Domains\Webhooks\Jobs\HandleSubscriptionUpdated;
 use App\Exceptions\StripeWebhookException;
 use App\Models\StripeEvent;
 use Illuminate\Support\Facades\Log;
@@ -15,7 +15,7 @@ use Stripe\Exception\SignatureVerificationException;
 
 /**
  * Service for processing Stripe webhooks
- * 
+ *
  * This service handles webhook validation and dispatches
  * appropriate jobs for async processing.
  */
@@ -34,7 +34,7 @@ class WebhookService
      */
     public function processWebhook(string $payload, ?string $signature): void
     {
-        if (!$signature) {
+        if (! $signature) {
             throw StripeWebhookException::invalidSignature();
         }
 
@@ -97,16 +97,16 @@ class WebhookService
         match ($event->type) {
             // Checkout events
             'checkout.session.completed' => HandleCheckoutSessionCompleted::dispatch($eventData),
-            
+
             // Subscription events
             'customer.subscription.created' => HandleSubscriptionUpdated::dispatch($eventData),
             'customer.subscription.updated' => HandleSubscriptionUpdated::dispatch($eventData),
             'customer.subscription.deleted' => HandleSubscriptionDeleted::dispatch($eventData),
-            
+
             // Invoice events
             'invoice.paid' => HandleInvoicePaid::dispatch($eventData),
             'invoice.payment_failed' => HandleInvoicePaymentFailed::dispatch($eventData),
-            
+
             // Unhandled events
             default => Log::info('Unhandled Stripe event type', ['type' => $event->type]),
         };

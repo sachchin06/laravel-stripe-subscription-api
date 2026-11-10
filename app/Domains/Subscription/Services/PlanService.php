@@ -18,7 +18,7 @@ class PlanService
     public function getAllPlansWithPrices(bool $includeInactive = false): Collection
     {
         return Plan::with('prices')
-            ->when(!$includeInactive, fn ($query) => $query->active())
+            ->when(! $includeInactive, fn ($query) => $query->active())
             ->get();
     }
 

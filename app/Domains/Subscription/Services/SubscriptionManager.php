@@ -3,22 +3,22 @@
 namespace App\Domains\Subscription\Services;
 
 use App\Domains\Shared\Services\StripeService;
-use App\Models\Subscription;
-use App\Models\User;
-use App\Models\PlanPrice;
 use App\Domains\Subscription\DTOs\SubscriptionData;
 use App\Enums\SubscriptionStatus;
+use App\Events\SubscriptionCanceled;
 use App\Events\SubscriptionCreated;
 use App\Events\SubscriptionUpdated;
-use App\Events\SubscriptionCanceled;
 use App\Exceptions\SubscriptionException;
+use App\Models\PlanPrice;
+use App\Models\Subscription;
+use App\Models\User;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Log;
 
 /**
  * High-level subscription management service
- * 
+ *
  * This service orchestrates subscription operations and ensures
  * consistency between local database and Stripe.
  */
@@ -33,12 +33,12 @@ class SubscriptionManager
     {
         $session = \Stripe\Checkout\Session::constructFrom($sessionData);
 
-        if (!$session->subscription) {
+        if (! $session->subscription) {
             throw SubscriptionException::invalidCheckoutSession('No subscription found in checkout session');
         }
 
         $userId = (int) $session->client_reference_id;
-        if (!$userId) {
+        if (! $userId) {
             throw SubscriptionException::invalidCheckoutSession('Missing client_reference_id');
         }
 
@@ -53,12 +53,12 @@ class SubscriptionManager
         $priceId = $stripeSubscription->items->data[0]->price->id;
         $planPrice = PlanPrice::where('stripe_price_id', $priceId)->first();
 
-        if (!$planPrice) {
+        if (! $planPrice) {
             throw SubscriptionException::invalidCheckoutSession("Price {$priceId} not found in database");
         }
 
         $user = User::find($userId);
-        if ($user && !$user->stripe_customer_id) {
+        if ($user && ! $user->stripe_customer_id) {
             $user->update(['stripe_customer_id' => $stripeSubscription->customer]);
         }
 
@@ -123,7 +123,7 @@ class SubscriptionManager
      */
     public function syncFromStripe(string $stripeSubscriptionId): ?Subscription
     {
-        if (!Subscription::where('stripe_subscription_id', $stripeSubscriptionId)->exists()) {
+        if (! Subscription::where('stripe_subscription_id', $stripeSubscriptionId)->exists()) {
             return null;
         }
 
@@ -184,7 +184,7 @@ class SubscriptionManager
 
     public function cancelAtPeriodEnd(Subscription $subscription): Subscription
     {
-        if (!$subscription->isActive()) {
+        if (! $subscription->isActive()) {
             throw SubscriptionException::notActive();
         }
 
@@ -206,7 +206,7 @@ class SubscriptionManager
 
     public function cancelImmediately(Subscription $subscription): Subscription
     {
-        if (!$subscription->isActive()) {
+        if (! $subscription->isActive()) {
             throw SubscriptionException::notActive();
         }
 

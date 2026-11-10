@@ -30,7 +30,7 @@ class HandleCheckoutSessionCompleted implements ShouldQueue
         $sessionId = $this->sessionData['id'] ?? 'unknown';
 
         // One-off payments have no subscription; nothing to store.
-        if (!isset($this->sessionData['subscription'])) {
+        if (! isset($this->sessionData['subscription'])) {
             Log::info('Checkout session has no subscription; skipped', ['session_id' => $sessionId]);
 
             return;
@@ -38,7 +38,7 @@ class HandleCheckoutSessionCompleted implements ShouldQueue
 
         // Every checkout this API creates sets client_reference_id, so a missing one
         // means the session was created elsewhere and cannot be linked to a user.
-        if (!isset($this->sessionData['client_reference_id'])) {
+        if (! isset($this->sessionData['client_reference_id'])) {
             Log::error('Checkout session missing client_reference_id; skipped', ['session_id' => $sessionId]);
 
             return;

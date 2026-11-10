@@ -31,7 +31,7 @@ class HandleSubscriptionDeleted implements ShouldQueue
 
         $subscription = $subscriptionManager->syncFromStripe($stripeSubscriptionId);
 
-        if (!$subscription) {
+        if (! $subscription) {
             Log::info('Subscription not stored locally yet; skipped', [
                 'stripe_subscription_id' => $stripeSubscriptionId,
             ]);
