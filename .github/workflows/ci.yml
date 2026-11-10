@@ -41,4 +41,4 @@ jobs:
       # Tests use in-memory SQLite and a mocked Stripe service: no database
       # server or Stripe keys are needed.
       - name: Run tests with coverage
-        run: vendor/bin/pest --coverage
+        run: vendor/bin/pest --coverage --min=75
