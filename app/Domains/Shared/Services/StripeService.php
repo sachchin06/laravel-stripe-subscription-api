@@ -98,7 +98,7 @@ class StripeService
 
     public function listPricesForProduct(string $productId): \Stripe\Collection
     {
-        return $this->stripe->prices->all(['product' => $productId, 'active' => true]);
+        return $this->stripe->prices->all(['product' => $productId, 'active' => true, 'limit' => 100]);
     }
 
     /**

@@ -111,7 +111,9 @@ class ProductService
 
         $products = $this->stripeService->listProducts(['active' => true, 'limit' => 100]);
 
-        foreach ($products->data as $product) {
+        // autoPagingIterator fetches the next page from Stripe whenever one runs out,
+        // so accounts with more than 100 products are fully imported.
+        foreach ($products->autoPagingIterator() as $product) {
             $slug = $product->metadata['slug'] ?? Str::slug($product->name);
             $plan = $this->findPlanForProduct($product->id, $slug);
 
@@ -134,7 +136,7 @@ class ProductService
 
             $prices = $this->stripeService->listPricesForProduct($product->id);
 
-            foreach ($prices->data as $stripePrice) {
+            foreach ($prices->autoPagingIterator() as $stripePrice) {
                 if ($stripePrice->type !== 'recurring') {
                     continue;
                 }
